@@ -1449,21 +1449,17 @@ function startScanner() {
   const config = {
     fps: 25, // High FPS for quick scanning
     qrbox: (width, height) => {
-      // Make it slightly larger on mobile to easily capture QR/Barcodes
-      const boxWidth = Math.min(width * 0.85, 380);
-      const boxHeight = Math.min(height * 0.5, 220);
+      // For mobile portrait screens, width is smaller. EAN-13/8 barcodes are wide and short.
+      // An optimal scanning box is wider and shorter to focus on 1D barcode lines and capture QR codes.
+      const boxWidth = Math.min(width * 0.9, 360);
+      const boxHeight = Math.min(height * 0.45, 160);
       return { width: boxWidth, height: boxHeight };
     },
-    aspectRatio: 1.333333,
-    // Enable browser's native hardware-accelerated Barcode Detection API if supported
-    useBarCodeDetectorIfSupported: true,
+    // DISABLE native BarcodeDetector API because it frequently fails on mobile Chrome/Android.
+    // Falling back to the robust ZXing WASM/JS library fixes the empty scan (tarıyor boş tarıyor) issue.
+    useBarCodeDetectorIfSupported: false,
     experimentalFeatures: {
-      useBarCodeDetectorIfSupported: true
-    },
-    videoConstraints: {
-      facingMode: "environment", // STRICTLY force rear camera
-      width: { min: 640, ideal: 1280, max: 1920 },
-      height: { min: 480, ideal: 720, max: 1080 }
+      useBarCodeDetectorIfSupported: false
     }
   };
 
