@@ -858,22 +858,6 @@ async function renderAdminSettingsView() {
           </select>
         </div>
 
-        <div class="input-group">
-          <label>Ürün Adı Etiketi (Name)</label>
-          <select class="input-field mapping-select" id="mapName" required>
-            <option value="">Seçiniz...</option>
-            ${sample.tags.map(t => `<option value="${t}" ${loadedXmlMappings.name === t ? 'selected' : ''}>${t}</option>`).join('')}
-          </select>
-        </div>
-
-        <div class="input-group">
-          <label>Fiyat Etiketi (Price) - Referans Fiyat</label>
-          <select class="input-field mapping-select" id="mapPrice" required>
-            <option value="">Seçiniz...</option>
-            ${sample.tags.map(t => `<option value="${t}" ${loadedXmlMappings.price === t ? 'selected' : ''}>${t}</option>`).join('')}
-          </select>
-        </div>
-
         <div class="input-group" style="margin-bottom:0;">
           <label>Ürün Görseli Etiketi (Image URL)</label>
           <select class="input-field mapping-select" id="mapImage" required>
@@ -899,8 +883,6 @@ async function renderAdminSettingsView() {
     e.preventDefault();
     const url = document.getElementById('xmlUrlInput').value.trim();
     const barcode = document.getElementById('mapBarcode').value;
-    const name = document.getElementById('mapName').value;
-    const price = document.getElementById('mapPrice').value;
     const image = document.getElementById('mapImage').value;
 
     const saveBtn = document.getElementById('saveXmlSettingsBtn');
@@ -910,8 +892,6 @@ async function renderAdminSettingsView() {
       const mappings = {
         productNodeName: detectedXmlProductTag,
         barcode,
-        name,
-        price,
         image
       };
 

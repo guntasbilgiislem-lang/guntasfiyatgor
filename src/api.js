@@ -241,8 +241,6 @@ class ApiService {
         const node = productNodes[i];
         
         let barcodeVal = '';
-        let nameVal = '';
-        let priceVal = '';
         let imageVal = '';
 
         // Extract values using tag mappings
@@ -250,16 +248,12 @@ class ApiService {
           const tagName = child.nodeName;
           const textContent = child.textContent ? child.textContent.trim() : '';
 
-          if (tagName === mappings.barcode) barcodeVal = textContent;
-          if (tagName === mappings.name) nameVal = textContent;
-          if (tagName === mappings.price) priceVal = textContent;
-          if (tagName === mappings.image) imageVal = textContent;
+          if (mappings.barcode && tagName === mappings.barcode) barcodeVal = textContent;
+          if (mappings.image && tagName === mappings.image) imageVal = textContent;
         }
 
         if (barcodeVal) {
           this.xmlProductsMap.set(barcodeVal, {
-            name: nameVal,
-            price: priceVal,
             image: imageVal
           });
         }
@@ -485,8 +479,8 @@ class ApiService {
     // 3. Merge and return
     return {
       barcode: stock.barcode,
-      // Prefer stock name from INI file, fallback to XML product name, fallback to default
-      name: stock.name || xmlProduct.name || 'Barkodlu Ürün',
+      // Prefer stock name from INI file, fallback to default
+      name: stock.name || 'Barkodlu Ürün',
       price: stock.price, // Branch specific price
       discount_price: stock.discount_price || null, // Campaign/Discount price
       image: xmlProduct.image || '' // Product image from XML
