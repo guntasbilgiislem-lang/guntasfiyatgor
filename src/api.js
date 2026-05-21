@@ -196,10 +196,14 @@ class ApiService {
     this.xmlLoaded = false;
     this.xmlProductsMap.clear();
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
     try {
       console.log('Ortak XML beslemesi yükleniyor...');
       const proxyUrl = `/api/proxy-xml?url=${encodeURIComponent(xmlUrl)}`;
-      const response = await fetch(proxyUrl);
+      const response = await fetch(proxyUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('XML yükleme proxy hatası');
 
       const xmlText = await response.text();
@@ -266,6 +270,7 @@ class ApiService {
         console.log("[DEBUG] XML Cache Örnek Ürünler:", sampleKeys.map(k => ({ barcode: k, data: this.xmlProductsMap.get(k) })));
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error('XML beslemesi belleğe alınamadı:', err);
       throw new Error('Ortak XML beslemesi yüklenemedi: ' + err.message);
     } finally {

@@ -1250,19 +1250,11 @@ async function renderKiosk() {
   try {
     const settings = await api.fetchSettings();
     if (settings.xml_url && settings.xml_mappings) {
-      const loader = document.getElementById('kioskLoader');
-      if (loader) {
-        const textSpan = loader.querySelector('span');
-        if (textSpan) {
-          textSpan.innerText = 'Ortak XML ürün verileri yükleniyor. Lütfen bekleyin...';
-        }
-      }
-      try {
-        const mappings = JSON.parse(settings.xml_mappings);
-        await api.loadXmlFeed(settings.xml_url, mappings);
-      } catch (xmlErr) {
+      // Start background load
+      const mappings = JSON.parse(settings.xml_mappings);
+      api.loadXmlFeed(settings.xml_url, mappings).catch(xmlErr => {
         console.warn('XML beslemesi yüklenemedi (Sadece yerel veritabanı aktif):', xmlErr);
-      }
+      });
     } else {
       console.warn('XML ayarları tanımlanmamış (Sadece yerel veritabanı aktif).');
     }
