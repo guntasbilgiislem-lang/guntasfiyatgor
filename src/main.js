@@ -59,6 +59,8 @@ async function init() {
   if (token && api.currentUser) {
     if (api.currentUser.role === 'admin') {
       navigateTo('admin_settings');
+    } else if (api.currentUser.role === 'user') {
+      navigateTo('multi_branch_kiosk');
     } else {
       navigateTo('kiosk');
     }
@@ -78,8 +80,8 @@ function navigateTo(view) {
     kioskStatusInterval = null;
   }
 
-  // Remove kiosk click handler if moving away from kiosk
-  if (view !== 'kiosk' && window.kioskClickHandler) {
+  // Remove kiosk click handler if moving away from any kiosk view
+  if (view !== 'kiosk' && view !== 'multi_branch_kiosk' && window.kioskClickHandler) {
     document.removeEventListener('click', window.kioskClickHandler);
     window.kioskClickHandler = null;
   }
@@ -93,6 +95,8 @@ function renderView() {
     renderLogin();
   } else if (currentView === 'kiosk') {
     renderKiosk();
+  } else if (currentView === 'multi_branch_kiosk') {
+    renderMultiBranchKiosk();
   } else {
     renderDashboardLayout();
   }
@@ -1029,6 +1033,531 @@ async function renderAdminSettingsView() {
       handleAdminFile(file);
     });
   }
+
+  // --- USER MANAGEMENT SECTION ---
+  // Append user management panel to main content
+  const mainContent2 = document.getElementById('mainContent');
+  if (mainContent2) {
+    const userSection = document.createElement('div');
+    userSection.innerHTML = `
+      <div class="glass-panel" style="margin-top: 2rem; padding: 2rem;" id="userMgmtSection">
+        <h3 style="margin-bottom:1.5rem; display:flex; align-items:center; gap:8px;">
+          <i class="ph ph-users text-teal"></i> Kullanıcı Yönetimi
+          <span style="font-size:0.75rem; font-weight:400; color:var(--color-text-muted); margin-left:6px;">(Tüm şubeleri görebilen kullanıcılar)</span>
+        </h3>
+
+        <div class="grid-cards" style="margin-bottom:1.5rem;">
+          <!-- Add/Edit User Form -->
+          <div class="glass-panel dashboard-card" id="userFormCard">
+            <div class="card-header">
+              <div class="card-title">
+                <i class="ph ph-user-plus text-teal"></i>
+                <h3 id="userFormTitle">Yeni Kullanıcı Ekle</h3>
+              </div>
+            </div>
+            <form id="userForm">
+              <input type="hidden" id="editingUserId" value="">
+              <div class="input-group">
+                <label for="userUsernameInput">Kullanıcı Adı</label>
+                <input type="text" id="userUsernameInput" class="input-field" placeholder="ör. satisekibi1" required>
+              </div>
+              <div class="input-group">
+                <label for="userNameInput">Ad Soyad</label>
+                <input type="text" id="userNameInput" class="input-field" placeholder="ör. Ahmet Yılmaz" required>
+              </div>
+              <div class="input-group">
+                <label for="userPassInput">Şifre</label>
+                <input type="password" id="userPassInput" class="input-field" placeholder="••••••••" required>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:0.5rem;">
+                <button type="submit" class="btn btn-teal btn-block" id="userSubmitBtn">
+                  <i class="ph ph-plus"></i> Kullanıcı Ekle
+                </button>
+                <button type="button" class="btn btn-danger" id="cancelUserEditBtn" style="display:none;">İptal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Kullanıcı Adı</th>
+                <th>Ad Soyad</th>
+                <th style="width:150px; text-align:center;">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="3" style="text-align:center;" class="text-muted">Kullanıcılar yükleniyor...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    mainContent2.appendChild(userSection);
+  }
+
+  // Load & render users table
+  const loadUsers = async () => {
+    const tbody = document.getElementById('usersTableBody');
+    if (!tbody) return;
+    try {
+      const users = await api.fetchUsers();
+      if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;" class="text-muted">Henüz kullanıcı eklenmemiş.</td></tr>`;
+      } else {
+        tbody.innerHTML = users.map(u => `
+          <tr>
+            <td style="font-family:monospace; font-weight:600;">${u.username}</td>
+            <td>${u.name}</td>
+            <td style="text-align:center; display:flex; gap:8px; justify-content:center;">
+              <button class="btn btn-teal btn-edit-user" data-id="${u.id}" data-username="${u.username}" data-name="${u.name}" style="padding:0.4rem 0.8rem; font-size:0.8rem;"><i class="ph ph-pencil-simple"></i></button>
+              <button class="btn btn-danger btn-delete-user" data-id="${u.id}" style="padding:0.4rem 0.8rem; font-size:0.8rem;"><i class="ph ph-trash"></i></button>
+            </td>
+          </tr>
+        `).join('');
+
+        document.querySelectorAll('.btn-edit-user').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const el = e.currentTarget;
+            document.getElementById('editingUserId').value = el.dataset.id;
+            document.getElementById('userUsernameInput').value = el.dataset.username;
+            document.getElementById('userUsernameInput').disabled = true;
+            document.getElementById('userNameInput').value = el.dataset.name;
+            document.getElementById('userPassInput').value = '';
+            document.getElementById('userPassInput').required = false;
+            document.getElementById('userPassInput').placeholder = 'Değiştirmek istemiyorsanız boş bırakın';
+            document.getElementById('userFormTitle').innerText = 'Kullanıcıyı Güncelle';
+            document.getElementById('userSubmitBtn').innerHTML = '<i class="ph ph-check"></i> Güncelle';
+            document.getElementById('cancelUserEditBtn').style.display = 'inline-flex';
+            document.getElementById('userFormCard').scrollIntoView({ behavior: 'smooth' });
+          });
+        });
+
+        document.querySelectorAll('.btn-delete-user').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            if (confirm('Bu kullanıcıyı silmek istediğinize emin misiniz?')) {
+              try {
+                await api.removeUser(id);
+                showToast('Kullanıcı silindi.', 'success');
+                loadUsers();
+              } catch (err) {
+                showToast(err.message, 'error');
+              }
+            }
+          });
+        });
+      }
+    } catch (e) {
+      if (document.getElementById('usersTableBody')) {
+        document.getElementById('usersTableBody').innerHTML = `<tr><td colspan="3" style="text-align:center;" class="text-muted">Kullanıcılar yüklenemedi.</td></tr>`;
+      }
+    }
+  };
+
+  loadUsers();
+
+  const resetUserForm = () => {
+    document.getElementById('userForm').reset();
+    document.getElementById('editingUserId').value = '';
+    document.getElementById('userUsernameInput').disabled = false;
+    document.getElementById('userPassInput').required = true;
+    document.getElementById('userPassInput').placeholder = '••••••••';
+    document.getElementById('userFormTitle').innerText = 'Yeni Kullanıcı Ekle';
+    document.getElementById('userSubmitBtn').innerHTML = '<i class="ph ph-plus"></i> Kullanıcı Ekle';
+    document.getElementById('cancelUserEditBtn').style.display = 'none';
+  };
+
+  const cancelUserEditBtn = document.getElementById('cancelUserEditBtn');
+  if (cancelUserEditBtn) cancelUserEditBtn.addEventListener('click', resetUserForm);
+
+  const userForm = document.getElementById('userForm');
+  if (userForm) {
+    userForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const editingId = document.getElementById('editingUserId').value;
+      const username = document.getElementById('userUsernameInput').value.trim();
+      const name = document.getElementById('userNameInput').value.trim();
+      const password = document.getElementById('userPassInput').value;
+      const submitBtn = document.getElementById('userSubmitBtn');
+      submitBtn.disabled = true;
+      try {
+        if (editingId) {
+          await api.updateUser(editingId, { name, password: password || undefined });
+          showToast('Kullanıcı güncellendi.', 'success');
+        } else {
+          await api.addUser({ username, name, password });
+          showToast('Yeni kullanıcı eklendi.', 'success');
+        }
+        resetUserForm();
+        loadUsers();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// 5b. MULTI-BRANCH KIOSK VIEW (USER ROLE - can select any branch)
+async function renderMultiBranchKiosk() {
+  const userName = api.currentUser ? api.currentUser.name : '';
+  let activeBranchId = null; // selected branch for barcode lookups
+
+  app.innerHTML = `
+    <div class="kiosk-container fade-in">
+      <div class="kiosk-header">
+        <div class="logo-container" style="display:flex; align-items:center; justify-content:center; margin-bottom: 0.5rem;">
+          <img src="/indexlogo_kiosk.png" class="kiosk-logo" alt="Güntaş">
+        </div>
+        <div class="kiosk-branch-name" id="mbkBranchName">Şube Seçilmedi</div>
+      </div>
+
+      <!-- Branch Selector Bar -->
+      <div class="mbk-branch-selector glass-panel">
+        <i class="ph ph-storefront" style="font-size:1.4rem; color:var(--color-secondary); flex-shrink:0;"></i>
+        <select id="mbkBranchSelect" class="mbk-select">
+          <option value="">Şube Seçiniz...</option>
+        </select>
+        <button class="btn btn-danger" id="mbkExitBtn" style="padding:0.4rem 1rem; font-size:0.85rem; flex-shrink:0;">
+          <i class="ph ph-sign-out"></i> Çıkış
+        </button>
+      </div>
+
+      <div class="kiosk-body" id="mbkBody">
+        <!-- Waiting for branch selection -->
+        <div class="glass-panel central-display-card" id="centralDisplayCard" style="display:flex;">
+          <div class="kiosk-welcome-state">
+            <div class="scanner-icon-glow">
+              <i class="ph ph-storefront scanner-placeholder-icon"></i>
+            </div>
+            <h2 class="welcome-title">Hoş Geldiniz, ${userName}</h2>
+            <p class="welcome-subtitle">Fiyat sorgulamak için yukarıdaki menüden bir şube seçiniz.</p>
+          </div>
+        </div>
+
+        <!-- Manual Barcode Input Wrapper (hidden until branch selected) -->
+        <div class="kiosk-input-wrapper" id="kioskInputWrapper" style="display:none;">
+          <div class="kiosk-input-bar glass-panel">
+            <i class="ph ph-barcode kiosk-input-icon"></i>
+            <input type="text" id="kioskManualInput" class="kiosk-manual-input" placeholder="Barkod No Giriniz" inputmode="none" autocomplete="off">
+            <button class="kiosk-camera-btn guntas-glowing-btn" id="kioskCameraBtn" title="Kamera ile Oku">
+              <i class="ph ph-camera"></i>
+            </button>
+            <button class="kiosk-numpad-toggle-btn" id="kioskNumpadToggleBtn" title="Numaratör">
+              <i class="ph ph-keypad"></i>
+            </button>
+            <button class="kiosk-manual-search-btn" id="kioskManualSearchBtn">
+              <i class="ph ph-magnifying-glass"></i> Sorgula
+            </button>
+          </div>
+          <div class="kiosk-touch-numpad glass-panel" id="kioskTouchNumpad" style="display:none;">
+            <div class="numpad-row">
+              <button class="numpad-btn" data-val="1">1</button>
+              <button class="numpad-btn" data-val="2">2</button>
+              <button class="numpad-btn" data-val="3">3</button>
+            </div>
+            <div class="numpad-row">
+              <button class="numpad-btn" data-val="4">4</button>
+              <button class="numpad-btn" data-val="5">5</button>
+              <button class="numpad-btn" data-val="6">6</button>
+            </div>
+            <div class="numpad-row">
+              <button class="numpad-btn" data-val="7">7</button>
+              <button class="numpad-btn" data-val="8">8</button>
+              <button class="numpad-btn" data-val="9">9</button>
+            </div>
+            <div class="numpad-row">
+              <button class="numpad-btn numpad-btn-danger" data-val="clear">C</button>
+              <button class="numpad-btn" data-val="0">0</button>
+              <button class="numpad-btn numpad-btn-backspace" data-val="backspace"><i class="ph ph-backspace"></i></button>
+            </div>
+            <div class="numpad-row">
+              <button class="numpad-btn numpad-btn-success btn-block" data-val="submit"><i class="ph ph-check"></i> SORGULA</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size:1.3rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; opacity:0.8;" id="kioskGuideMessage" style="display:none;">
+          <i class="ph ph-hand-pointing" style="vertical-align:middle; font-size:1.8rem;"></i> Lütfen ürün barkodunu okutun
+        </div>
+
+        <input type="text" id="kioskUsbInput" style="position:absolute; opacity:0; pointer-events:none; top:-100px;" autofocus>
+      </div>
+
+      <div class="kiosk-footer">
+        <div style="text-align:left; font-size:0.8rem; line-height:1.4; color:var(--color-text-muted);">
+          <div id="kioskStockCount" style="font-weight:500; color:var(--color-secondary);">Şube seçilmedi</div>
+          <div id="kioskLastUpdate">Son Güncelleme: --.--.---- --:--:--</div>
+        </div>
+        <div>Güntaş İndex Kurumsal</div>
+      </div>
+    </div>
+
+    <!-- Camera Modal Backdrop -->
+    <div class="kiosk-modal-backdrop" id="cameraModal" style="display:none;">
+      <div class="kiosk-modal-content glass-panel">
+        <button class="kiosk-modal-close-btn" id="closeCameraModalBtn" title="Kapat">
+          <i class="ph ph-x"></i>
+        </button>
+        <h3 class="modal-title"><i class="ph ph-camera"></i> Barkod & QR Tara</h3>
+        <div class="modal-scanner-container">
+          <div id="reader" style="width:100%; height:100%;"></div>
+          <div class="scanner-laser"></div>
+        </div>
+        <div class="modal-footer-text">Barkod, QR veya Barkod Sayılarını Kameraya Okutun</div>
+      </div>
+    </div>
+  `;
+
+  // Load branches into selector
+  try {
+    const branches = await api.fetchBranches();
+    const sel = document.getElementById('mbkBranchSelect');
+    if (sel && branches.length > 0) {
+      branches.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.name;
+        sel.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    showToast('Şubeler yüklenemedi: ' + e.message, 'error');
+  }
+
+  // Exit button - no password needed for user role
+  document.getElementById('mbkExitBtn').addEventListener('click', () => {
+    api.logout();
+    navigateTo('login');
+  });
+
+  // Branch select change handler
+  const branchSelect = document.getElementById('mbkBranchSelect');
+  branchSelect.addEventListener('change', async () => {
+    activeBranchId = branchSelect.value || null;
+
+    const branchNameEl = document.getElementById('mbkBranchName');
+    const inputWrapper = document.getElementById('kioskInputWrapper');
+    const guideMessage = document.getElementById('kioskGuideMessage');
+    const centralDisplay = document.getElementById('centralDisplayCard');
+    const countEl = document.getElementById('kioskStockCount');
+    const lastUpdateEl = document.getElementById('kioskLastUpdate');
+
+    if (!activeBranchId) {
+      // No branch selected, show placeholder
+      if (branchNameEl) branchNameEl.textContent = 'Şube Seçilmedi';
+      if (inputWrapper) inputWrapper.style.display = 'none';
+      if (guideMessage) guideMessage.style.display = 'none';
+      if (countEl) countEl.innerText = 'Şube seçilmedi';
+      if (lastUpdateEl) lastUpdateEl.innerText = 'Son Güncelleme: --.--.---- --:--:--';
+      showWelcomeStateMbk(userName);
+      return;
+    }
+
+    const selectedName = branchSelect.options[branchSelect.selectedIndex].text;
+    if (branchNameEl) branchNameEl.textContent = selectedName;
+
+    // Show input wrapper and guide
+    if (inputWrapper) inputWrapper.style.display = 'block';
+    showWelcomeState(); // reuse standard welcome state
+    if (guideMessage) guideMessage.style.display = 'block';
+
+    // Load stock info for selected branch
+    try {
+      const count = await api.getBranchStockCount(activeBranchId);
+      const lastUpdate = await api.getBranchLastUpdate(activeBranchId);
+      if (countEl) countEl.innerText = `${count.toLocaleString('tr-TR')} adet stok verisi`;
+      if (lastUpdateEl) {
+        if (lastUpdate) {
+          const utcStr = lastUpdate.endsWith('Z') ? lastUpdate : lastUpdate + 'Z';
+          const date = new Date(utcStr);
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = date.getFullYear();
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const seconds = String(date.getSeconds()).padStart(2, '0');
+          lastUpdateEl.innerText = `Son Güncelleme: ${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+        } else {
+          lastUpdateEl.innerText = 'Son Güncelleme: --.--.---- --:--:--';
+        }
+      }
+    } catch (e) {
+      console.warn('Stok bilgisi alınamadı:', e);
+    }
+
+    // Refocus USB input
+    const usbInput = document.getElementById('kioskUsbInput');
+    if (usbInput) usbInput.focus();
+  });
+
+  // USB input handler - passes activeBranchId to lookup
+  const usbInput = document.getElementById('kioskUsbInput');
+  if (usbInput) {
+    usbInput.addEventListener('keypress', async (e) => {
+      if (e.key === 'Enter') {
+        const barcode = usbInput.value.trim();
+        usbInput.value = '';
+        if (barcode && activeBranchId) {
+          await lookupKioskBarcode(barcode, activeBranchId);
+        } else if (barcode && !activeBranchId) {
+          showToast('Lütfen önce bir şube seçin.', 'info');
+        }
+      }
+    });
+  }
+
+  // Manual input + numpad
+  const manualInput = document.getElementById('kioskManualInput');
+  const touchNumpad = document.getElementById('kioskTouchNumpad');
+  const numpadToggleBtn = document.getElementById('kioskNumpadToggleBtn');
+  const manualSearchBtn = document.getElementById('kioskManualSearchBtn');
+
+  numpadToggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (touchNumpad.style.display === 'none') {
+      touchNumpad.style.display = 'flex';
+      numpadToggleBtn.classList.add('active');
+      manualInput.focus();
+    } else {
+      touchNumpad.style.display = 'none';
+      numpadToggleBtn.classList.remove('active');
+      if (usbInput) usbInput.focus();
+    }
+  });
+
+  document.querySelectorAll('.numpad-btn').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const val = btn.dataset.val;
+      if (!val) return;
+      if (val === 'clear') {
+        manualInput.value = '';
+      } else if (val === 'backspace') {
+        manualInput.value = manualInput.value.slice(0, -1);
+      } else if (val === 'submit') {
+        const barcode = manualInput.value.trim();
+        if (!activeBranchId) { showToast('Lütfen önce bir şube seçin.', 'info'); return; }
+        if (barcode) lookupKioskBarcode(barcode, activeBranchId);
+        else showToast('Lütfen bir barkod giriniz.', 'info');
+      } else {
+        manualInput.value += val;
+      }
+    });
+  });
+
+  manualSearchBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const barcode = manualInput.value.trim();
+    if (!activeBranchId) { showToast('Lütfen önce bir şube seçin.', 'info'); return; }
+    if (barcode) lookupKioskBarcode(barcode, activeBranchId);
+    else showToast('Lütfen bir barkod giriniz.', 'info');
+  });
+
+  manualInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const barcode = manualInput.value.trim();
+      if (!activeBranchId) { showToast('Lütfen önce bir şube seçin.', 'info'); return; }
+      if (barcode) lookupKioskBarcode(barcode, activeBranchId);
+    }
+  });
+
+  // Camera button
+  const cameraBtn = document.getElementById('kioskCameraBtn');
+  if (cameraBtn) {
+    cameraBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!activeBranchId) { showToast('Lütfen önce bir şube seçin.', 'info'); return; }
+      openCameraModalMbk(activeBranchId);
+    });
+  }
+
+  // Camera modal close
+  const closeBtn = document.getElementById('closeCameraModalBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeCameraModal();
+    });
+  }
+
+  const cameraModal = document.getElementById('cameraModal');
+  if (cameraModal) {
+    cameraModal.addEventListener('click', (e) => {
+      if (e.target === cameraModal) closeCameraModal();
+    });
+  }
+
+  // Central card click = open camera (if branch selected)
+  const centralDisplay = document.getElementById('centralDisplayCard');
+  if (centralDisplay) {
+    centralDisplay.addEventListener('click', () => {
+      if (!activeBranchId) return;
+      const isProductShown = centralDisplay.querySelector('.kiosk-product-result') || centralDisplay.querySelector('.kiosk-product-error');
+      if (!isProductShown) openCameraModalMbk(activeBranchId);
+    });
+  }
+
+  // Global click → refocus USB input (when branch is selected)
+  window.kioskClickHandler = (e) => {
+    if (e && e.target) {
+      if (e.target.closest('#kioskManualInput') ||
+          e.target.closest('#kioskTouchNumpad') ||
+          e.target.closest('#kioskNumpadToggleBtn') ||
+          e.target.closest('#kioskManualSearchBtn') ||
+          e.target.closest('#mbkBranchSelect') ||
+          e.target.closest('#mbkExitBtn')) {
+        return;
+      }
+    }
+    if (currentView === 'multi_branch_kiosk' && usbInput && activeBranchId) {
+      usbInput.focus();
+    }
+  };
+  document.addEventListener('click', window.kioskClickHandler);
+
+  // Load XML feed in background for images
+  try {
+    const settings = await api.fetchSettings();
+    if (settings.xml_url && settings.xml_mappings) {
+      const mappings = JSON.parse(settings.xml_mappings);
+      api.loadXmlFeed(settings.xml_url, mappings).catch(() => {});
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// Welcome state for multi-branch (before branch selection)
+function showWelcomeStateMbk(userName) {
+  const centralDisplay = document.getElementById('centralDisplayCard');
+  if (centralDisplay) {
+    centralDisplay.innerHTML = `
+      <div class="kiosk-welcome-state">
+        <div class="scanner-icon-glow">
+          <i class="ph ph-storefront scanner-placeholder-icon"></i>
+        </div>
+        <h2 class="welcome-title">Hoş Geldiniz, ${userName}</h2>
+        <p class="welcome-subtitle">Fiyat sorgulamak için yukarıdaki menüden bir şube seçiniz.</p>
+      </div>
+    `;
+    centralDisplay.style.display = 'flex';
+  }
+}
+
+// Multi-branch camera modal opener (passes activeBranchId to scanner callback)
+function openCameraModalMbk(branchId) {
+  const modal = document.getElementById('cameraModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    startScannerWithCallback(async (decodedText) => {
+      closeCameraModal();
+      await lookupKioskBarcode(decodedText, branchId);
+    });
+  }
 }
 
 // 5. KIOSK SCANNING VIEW (CUSTOMER SCREEN)
@@ -1342,7 +1871,9 @@ async function renderKiosk() {
       
       if (lastUpdateEl) {
         if (lastUpdate) {
-          const date = new Date(lastUpdate);
+          // Append 'Z' to treat timestamp as UTC and convert correctly to local time (UTC+3 Turkey)
+          const utcStr = lastUpdate.endsWith('Z') ? lastUpdate : lastUpdate + 'Z';
+          const date = new Date(utcStr);
           const day = String(date.getDate()).padStart(2, '0');
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const year = date.getFullYear();
@@ -1408,7 +1939,8 @@ function showWelcomeState() {
 }
 
 // BARCODE SCANNER LOGIC USING HTML5-QRCODE
-async function startScanner() {
+// onSuccess: optional callback(decodedText). Defaults to standard kiosk lookup.
+async function startScannerWithCallback(onSuccess) {
   if (typeof Html5Qrcode === 'undefined') {
     console.warn('Html5Qrcode kütüphanesi yüklenemedi.');
     return;
@@ -1419,7 +1951,7 @@ async function startScanner() {
 
   console.log('[SCANNER] Başlatılıyor...');
 
-  // Configure specific barcode formats to speed up scanning and avoid processing unnecessary types
+  // Configure specific barcode formats
   let formats = [];
   const supported = window.Html5QrcodeSupportedFormats || (window.Html5Qrcode && window.Html5Qrcode.SupportedFormats);
   if (supported) {
@@ -1435,143 +1967,97 @@ async function startScanner() {
     ];
   }
 
-  const scannerOptions = {
-    verbose: false
-  };
+  const scannerOptions = { verbose: false };
   if (formats && formats.length > 0) {
     scannerOptions.formatsToSupport = formats;
   }
 
-  // Instantiate with optimized formats support
   html5QrcodeScanner = new Html5Qrcode("reader", scannerOptions);
 
-  // Optimized scanner parameters for reliable barcode reading
   const config = {
-    fps: 15, // Lower FPS gives the decoder more time per frame for accurate reads
+    fps: 15,
     qrbox: (width, height) => {
-      // Wider and taller scanning box for better barcode capture.
-      // EAN-13/8 barcodes need a wide horizontal area.
-      // QR codes need a taller box. Use most of the available width.
       const boxWidth = Math.min(width * 0.92, 500);
       const boxHeight = Math.min(height * 0.55, 250);
       return { width: Math.floor(boxWidth), height: Math.floor(boxHeight) };
     },
-    aspectRatio: 1.0, // Square camera view for better framing
-    // DISABLE native BarcodeDetector API because it frequently fails on mobile Chrome/Android.
-    // Falling back to the robust ZXing WASM/JS library fixes the empty scan (tarıyor boş tarıyor) issue.
+    aspectRatio: 1.0,
     useBarCodeDetectorIfSupported: false,
-    disableFlip: false, // Allow mirrored barcodes
-    experimentalFeatures: {
-      useBarCodeDetectorIfSupported: false
-    }
+    disableFlip: false,
+    experimentalFeatures: { useBarCodeDetectorIfSupported: false }
   };
 
-  // ---- SMART CAMERA SELECTION ----
-  // On iPhone Pro models (3 cameras: 0.5x ultra-wide, 1x wide, 3x telephoto),
-  // the browser often defaults to the ultra-wide camera which makes barcode reading
-  // very difficult due to distortion. We must explicitly select the standard 1x camera.
+  // Smart camera selection (prefer standard 1x rear camera on multi-lens phones)
   let cameraId = null;
-
   try {
     const devices = await Html5Qrcode.getCameras();
     console.log('[SCANNER] Bulunan kameralar:', devices.map(d => ({ id: d.id, label: d.label })));
-
     if (devices && devices.length > 0) {
-      // Filter rear/back cameras
       const rearCameras = devices.filter(d => {
         const label = (d.label || '').toLowerCase();
         return label.includes('back') || label.includes('arka') || label.includes('rear') || label.includes('environment');
       });
-
       const camerasToSearch = rearCameras.length > 0 ? rearCameras : devices;
-
-      // On iPhones, camera labels are typically:
-      //   "Back Camera"          -> standard 1x wide (THIS IS WHAT WE WANT)
-      //   "Back Ultra Wide Camera" -> 0.5x ultra-wide
-      //   "Back Telephoto Camera"  -> 2x or 3x telephoto
-      // On some iOS versions they may appear in Turkish or slightly different.
-      // Strategy: pick the rear camera that is NOT ultra-wide and NOT telephoto.
-      // If only one rear camera, use it directly.
-
       if (camerasToSearch.length === 1) {
         cameraId = camerasToSearch[0].id;
-        console.log(`[SCANNER] Tek arka kamera bulundu: "${camerasToSearch[0].label}"`);
       } else {
-        // Multiple rear cameras - find the standard 1x
-        const standard1xCamera = camerasToSearch.find(d => {
+        const standard1x = camerasToSearch.find(d => {
           const label = (d.label || '').toLowerCase();
-          // Exclude ultra wide (0.5x) and telephoto (2x/3x)
-          const isUltraWide = label.includes('ultra') || label.includes('geniş') || label.includes('wide') && !label.includes('camera');
+          const isUltraWide = label.includes('ultra') || label.includes('geniş') || (label.includes('wide') && !label.includes('camera'));
           const isTelephoto = label.includes('tele') || label.includes('zoom');
           return !isUltraWide && !isTelephoto;
         });
-
-        if (standard1xCamera) {
-          cameraId = standard1xCamera.id;
-          console.log(`[SCANNER] Standart 1x kamera seçildi: "${standard1xCamera.label}"`);
+        if (standard1x) {
+          cameraId = standard1x.id;
         } else {
-          // Fallback: if we can't identify by label, pick by index.
-          // On iPhones, the standard camera is typically the FIRST back camera listed,
-          // or the SECOND device in the full list (index 1) after the front camera.
-          // Try to find one labeled exactly "Back Camera" (no qualifier)
-          const exactBackCamera = camerasToSearch.find(d => {
+          const exact = camerasToSearch.find(d => {
             const label = (d.label || '').toLowerCase().trim();
             return label === 'back camera' || label === 'arka kamera';
           });
-
-          if (exactBackCamera) {
-            cameraId = exactBackCamera.id;
-            console.log(`[SCANNER] Tam eşleşme ile 1x kamera bulundu: "${exactBackCamera.label}"`);
+          if (exact) {
+            cameraId = exact.id;
           } else {
-            // Last resort: among rear cameras, pick the one with the shortest label
-            // (usually "Back Camera" is shortest vs "Back Ultra Wide Camera")
             const sorted = [...camerasToSearch].sort((a, b) => (a.label || '').length - (b.label || '').length);
             cameraId = sorted[0].id;
-            console.log(`[SCANNER] En kısa isimli arka kamera seçildi: "${sorted[0].label}"`);
           }
         }
       }
     }
   } catch (enumErr) {
-    console.warn('[SCANNER] Kamera listeleme hatası, facingMode fallback kullanılacak:', enumErr);
+    console.warn('[SCANNER] Kamera listeleme hatası, facingMode fallback:', enumErr);
   }
 
-  // Determine camera config: use specific deviceId if found, otherwise facingMode fallback
-  const cameraConfig = cameraId
-    ? { deviceId: { exact: cameraId } }
-    : { facingMode: "environment" };
-
+  const cameraConfig = cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "environment" };
   console.log('[SCANNER] Kamera konfigürasyonu:', cameraId ? `deviceId: ${cameraId}` : 'facingMode: environment');
 
-  // Start scanning
+  const successCb = onSuccess || (async (decodedText) => {
+    console.log(`[SCANNER] Kamera barkod okundu: ${decodedText}`);
+    closeCameraModal();
+    await lookupKioskBarcode(decodedText);
+  });
+
   html5QrcodeScanner.start(
     cameraConfig,
     config,
     async (decodedText) => {
-      // Success callback
       console.log(`[SCANNER] Kamera barkod okundu: ${decodedText}`);
-      closeCameraModal();
-      await lookupKioskBarcode(decodedText);
+      await successCb(decodedText);
     },
-    (errorMessage) => {
-      // Verbose error, ignore
-    }
+    () => {} // frame error, ignore
   ).catch(err => {
     console.error('[SCANNER] Kamera başlatılamadı:', err);
-    // If specific camera failed, retry with generic facingMode
     if (cameraId) {
-      console.log('[SCANNER] Belirli kamera başarısız, genel arka kamera ile tekrar deneniyor...');
+      console.log('[SCANNER] Belirli kamera başarısız, fallback...');
       html5QrcodeScanner.start(
         { facingMode: "environment" },
         config,
         async (decodedText) => {
-          console.log(`[SCANNER] Kamera barkod okundu (fallback): ${decodedText}`);
-          closeCameraModal();
-          await lookupKioskBarcode(decodedText);
+          console.log(`[SCANNER] Fallback barkod: ${decodedText}`);
+          await successCb(decodedText);
         },
         () => {}
       ).catch(fallbackErr => {
-        console.error('[SCANNER] Fallback kamera da başarısız:', fallbackErr);
+        console.error('[SCANNER] Fallback da başarısız:', fallbackErr);
         showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
         closeCameraModal();
       });
@@ -1580,6 +2066,11 @@ async function startScanner() {
       closeCameraModal();
     }
   });
+}
+
+// Standard kiosk shorthand
+async function startScanner() {
+  return startScannerWithCallback(null);
 }
 
 function stopScanner() {
@@ -1596,10 +2087,11 @@ function stopScanner() {
 }
 
 // LOOKUP BARCODE AND SHOW PRODUCT DETAILS
-async function lookupKioskBarcode(barcode) {
+// activeBranchId: optional override for multi-branch kiosk; defaults to current user's branch
+async function lookupKioskBarcode(barcode, activeBranchId = null) {
   const centralDisplay = document.getElementById('centralDisplayCard');
   const guideMessage = document.getElementById('kioskGuideMessage');
-  const branchId = api.currentUser.id;
+  const branchId = activeBranchId || api.currentUser.id;
 
   if (kioskResetTimeout) clearTimeout(kioskResetTimeout);
 

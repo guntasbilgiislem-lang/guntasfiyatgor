@@ -16,6 +16,14 @@ CREATE TABLE IF NOT EXISTS stocks (
   PRIMARY KEY (branch_id, barcode)
 );
 
+CREATE TABLE IF NOT EXISTS app_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  username TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT DEFAULT 'user'
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -25,6 +33,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- (Uygulamanın şubelerden ve kiosk cihazlarından doğrudan veri okuyup yazabilmesi için)
 ALTER TABLE branches DISABLE ROW LEVEL SECURITY;
 ALTER TABLE stocks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE app_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 
 -- Eğer RLS'yi kapatmak yerine herkese açık izinler (policy) tanımlamak isterseniz aşağıdaki komutları kullanabilirsiniz:

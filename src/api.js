@@ -51,6 +51,22 @@ class ApiService {
       return user;
     }
 
+    // App user login (multi-branch viewer role)
+    const { data: appUser, error: appUserError } = await supabase
+      .from('app_users')
+      .select('*')
+      .eq('username', username)
+      .eq('password', password)
+      .maybeSingle();
+
+    if (appUserError) throw new Error('Veritabanı hatası: ' + appUserError.message);
+
+    if (appUser) {
+      const user = { id: appUser.id, name: appUser.name, role: 'user', username: appUser.username };
+      this.setToken('jwt_user_' + username + '_' + Date.now(), user);
+      return user;
+    }
+
     // Branch login
     const { data, error } = await supabase
       .from('branches')
@@ -65,6 +81,52 @@ class ApiService {
     const user = { id: data.id, name: data.name, role: 'branch', password: data.password };
     this.setToken('jwt_branch_' + username + '_' + Date.now(), user);
     return user;
+  }
+
+  // --- APP USERS MANAGEMENT (ADMIN ONLY) ---
+  async fetchUsers() {
+    const { data, error } = await supabase
+      .from('app_users')
+      .select('id, username, name, role')
+      .order('name', { ascending: true });
+
+    if (error) throw new Error('Kullanıcılar getirilemedi: ' + error.message);
+    return data;
+  }
+
+  async addUser({ username, name, password }) {
+    if (!username || !name || !password) throw new Error('Tüm alanlar zorunludur.');
+
+    const { error } = await supabase
+      .from('app_users')
+      .insert([{ username, name, password, role: 'user' }]);
+
+    if (error) {
+      if (error.code === '23505') throw new Error('Bu kullanıcı adı zaten kullanılıyor.');
+      throw new Error('Kullanıcı eklenemedi: ' + error.message);
+    }
+  }
+
+  async updateUser(id, { name, password }) {
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (password) updateData.password = password;
+
+    const { error } = await supabase
+      .from('app_users')
+      .update(updateData)
+      .eq('id', id);
+
+    if (error) throw new Error('Kullanıcı güncellenemedi: ' + error.message);
+  }
+
+  async removeUser(id) {
+    const { error } = await supabase
+      .from('app_users')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error('Kullanıcı silinemedi: ' + error.message);
   }
 
   // --- BRANCHES MANAGEMENT (ADMIN ONLY) ---
