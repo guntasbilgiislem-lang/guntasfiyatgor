@@ -197,7 +197,7 @@ class ApiService {
     this.xmlProductsMap.clear();
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout due to slow XML feeds (e.g. b4b.ozgunes.com.tr)
 
     try {
       console.log('Ortak XML beslemesi yükleniyor...');

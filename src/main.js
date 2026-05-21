@@ -1359,15 +1359,17 @@ function startScanner() {
     useBarCodeDetectorIfSupported: true,
     experimentalFeatures: {
       useBarCodeDetectorIfSupported: true
+    },
+    videoConstraints: {
+      width: { min: 640, ideal: 1280, max: 1920 },
+      height: { min: 480, ideal: 720, max: 1080 }
     }
   };
 
   // Video resolution constraints: Thin barcode lines require higher resolution (720p/1080p ideal)
   // Standard webcam/browser stream is often low res (e.g. 320x240 or 640x480), causing blurry lines.
   const cameraConfig = {
-    facingMode: "environment",
-    width: { min: 640, ideal: 1280, max: 1920 },
-    height: { min: 480, ideal: 720, max: 1080 }
+    facingMode: "environment"
   };
 
   // Start scanning
