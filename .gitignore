@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Local env files
+.env
+.env*.local
+
+# Production build
+dist/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
