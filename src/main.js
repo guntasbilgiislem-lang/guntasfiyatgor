@@ -1352,22 +1352,55 @@ function startScanner() {
   stopScanner();
 
   console.log('[SCANNER] Başlatılıyor...');
-  html5QrcodeScanner = new Html5Qrcode("reader");
 
+  // Configure specific barcode formats to speed up scanning and avoid processing unnecessary types
+  let formats = [];
+  if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+    formats = [
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.QR_CODE
+    ];
+  }
+
+  // Instantiate with optimized formats support
+  html5QrcodeScanner = new Html5Qrcode("reader", {
+    formatsToSupport: formats,
+    verbose: false
+  });
+
+  // Optimized scanner parameters
   const config = {
-    fps: 10,
+    fps: 20, // Increased from 10 to 20 for faster scan frame analysis
     qrbox: (width, height) => {
       // Barcode formats are wide, so make scanning box wide and short
-      const boxWidth = Math.min(width * 0.8, 380);
-      const boxHeight = Math.min(height * 0.4, 150);
+      const boxWidth = Math.min(width * 0.85, 420);
+      const boxHeight = Math.min(height * 0.35, 120);
       return { width: boxWidth, height: boxHeight };
     },
-    aspectRatio: 1.333333
+    aspectRatio: 1.333333,
+    // Enable browser's native hardware-accelerated Barcode Detection API if supported
+    useBarCodeDetectorIfSupported: true,
+    experimentalFeatures: {
+      useBarCodeDetectorIfSupported: true
+    }
   };
 
-  // Start with back-facing camera or fallback to default environment camera
+  // Video resolution constraints: Thin barcode lines require higher resolution (720p/1080p ideal)
+  // Standard webcam/browser stream is often low res (e.g. 320x240 or 640x480), causing blurry lines.
+  const cameraConfig = {
+    facingMode: "environment",
+    width: { min: 640, ideal: 1280, max: 1920 },
+    height: { min: 480, ideal: 720, max: 1080 }
+  };
+
+  // Start scanning
   html5QrcodeScanner.start(
-    { facingMode: "environment" },
+    cameraConfig,
     config,
     async (decodedText) => {
       // Success callback
