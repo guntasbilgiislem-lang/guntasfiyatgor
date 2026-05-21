@@ -261,6 +261,10 @@ class ApiService {
 
       this.xmlLoaded = true;
       console.log(`XML beslemesi başarıyla belleğe alındı. Toplam: ${this.xmlProductsMap.size} barkod`);
+      if (this.xmlProductsMap.size > 0) {
+        const sampleKeys = Array.from(this.xmlProductsMap.keys()).slice(0, 3);
+        console.log("[DEBUG] XML Cache Örnek Ürünler:", sampleKeys.map(k => ({ barcode: k, data: this.xmlProductsMap.get(k) })));
+      }
     } catch (err) {
       console.error('XML beslemesi belleğe alınamadı:', err);
       throw new Error('Ortak XML beslemesi yüklenemedi: ' + err.message);
@@ -475,6 +479,7 @@ class ApiService {
 
     // 2. Fetch product details from XML in-memory cache
     const xmlProduct = this.xmlProductsMap.get(barcode) || {};
+    console.log(`[DEBUG] Barkod: ${barcode}, Veritabanı (INI):`, { name: stock.name, price: stock.price }, "XML Cache Eşleşmesi:", xmlProduct);
 
     // 3. Merge and return
     return {
