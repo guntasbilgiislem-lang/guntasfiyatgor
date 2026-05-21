@@ -366,7 +366,9 @@ h1, h2, h3, h4, h5, h6 {
 /* KIOSK / BARCODE SCANNER VIEW */
 .kiosk-container {
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -986,10 +988,452 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 3.5rem;
 }
 
-.product-card:not(.no-image) .old-price {
-  font-size: 1.4rem;
-}
-
 .product-card:not(.no-image) .new-price {
   font-size: 2.8rem;
+}
+
+/* --- KIOSK ADDITIONS & MOBILE OPTIMIZATIONS --- */
+
+/* Camera trigger button inside input bar */
+.kiosk-camera-btn {
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--color-secondary);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.3rem;
+  transition: var(--transition);
+}
+
+.kiosk-camera-btn:hover {
+  background: var(--color-secondary);
+  color: var(--color-dark);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+}
+
+/* Camera Modal Backdrop */
+.kiosk-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(4, 9, 15, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: fadeIn 0.25s ease forwards;
+}
+
+/* Kiosk Modal Content */
+.kiosk-modal-content {
+  width: 90%;
+  max-width: 480px;
+  background: rgba(13, 27, 42, 0.9) !important;
+  border: 1px solid rgba(0, 229, 255, 0.3) !important;
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  position: relative;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 229, 255, 0.1) !important;
+  animation: scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.15) forwards;
+}
+
+/* Close Button */
+.kiosk-modal-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: var(--transition);
+}
+
+.kiosk-modal-close-btn:hover {
+  background: rgba(255, 23, 68, 0.2);
+  color: var(--color-error);
+  border-color: rgba(255, 23, 68, 0.3);
+}
+
+/* Scanner Container in Modal */
+.modal-scanner-container {
+  width: 100%;
+  aspect-ratio: 1.2;
+  margin: 1.5rem 0;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+
+.modal-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.modal-footer-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-top: 0.5rem;
+}
+
+/* Central Display Area styling */
+.central-display-card {
+  width: 100%;
+  max-width: 600px;
+  min-height: 320px;
+  padding: 2.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: rgba(10, 25, 41, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.central-display-card:hover {
+  border-color: var(--color-secondary);
+  box-shadow: 0 20px 50px rgba(0, 229, 255, 0.1);
+}
+
+/* Kiosk Welcome State */
+.kiosk-welcome-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.kiosk-welcome-state .welcome-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.kiosk-welcome-state .welcome-subtitle {
+  font-size: 1.15rem;
+  color: var(--color-text-muted);
+  max-width: 440px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.kiosk-welcome-state .welcome-features {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.kiosk-welcome-state .feature-tag {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Kiosk Product Result Layout */
+.kiosk-product-result {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+.kiosk-product-result.no-image {
+  flex-direction: column;
+  text-align: center;
+  justify-content: center;
+}
+
+.kiosk-product-result .product-image-container {
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kiosk-product-result .product-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.kiosk-product-result .product-info-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.kiosk-product-result .product-barcode {
+  font-size: 0.9rem;
+  font-family: monospace;
+  color: var(--color-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.kiosk-product-result .product-name {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+  margin-bottom: 1rem;
+}
+
+.kiosk-product-result .price-label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.kiosk-product-result .product-price {
+  font-size: 3.2rem;
+  font-weight: 800;
+  color: var(--color-secondary);
+  line-height: 1;
+}
+
+/* Product Error Layout */
+.kiosk-product-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  text-align: center;
+  width: 100%;
+}
+
+.kiosk-product-error .error-icon {
+  font-size: 4rem;
+  color: var(--color-error);
+  filter: drop-shadow(0 0 10px rgba(255, 23, 68, 0.3));
+  animation: pulseError 2s infinite ease-in-out;
+}
+
+.kiosk-product-error h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.kiosk-product-error .error-detail {
+  font-size: 1rem;
+  color: var(--color-text-muted);
+  max-width: 400px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+@keyframes pulseError {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.85;
+  }
+}
+
+/* Mobile Optimizations (Strictly applied to screen sizes <= 600px, desktop is untouched) */
+@media (max-width: 600px) {
+  .kiosk-container {
+    padding: 0.75rem !important;
+  }
+
+  .kiosk-logo {
+    max-height: 55px !important;
+  }
+
+  .kiosk-branch-name {
+    font-size: 1rem !important;
+  }
+
+  .kiosk-body {
+    margin: 0.25rem 0 !important;
+    gap: 0.75rem !important;
+  }
+
+  .central-display-card {
+    min-height: 200px !important;
+    padding: 1.25rem !important;
+  }
+
+  .kiosk-welcome-state {
+    gap: 0.75rem !important;
+  }
+
+  .kiosk-welcome-state .scanner-icon-glow {
+    width: 64px !important;
+    height: 64px !important;
+  }
+
+  .kiosk-welcome-state .scanner-placeholder-icon {
+    font-size: 2.2rem !important;
+  }
+
+  .kiosk-welcome-state .welcome-title {
+    font-size: 1.4rem !important;
+  }
+
+  .kiosk-welcome-state .welcome-subtitle {
+    font-size: 0.95rem !important;
+  }
+
+  .kiosk-welcome-state .welcome-features {
+    gap: 8px !important;
+  }
+
+  .kiosk-welcome-state .feature-tag {
+    padding: 0.35rem 0.7rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .kiosk-product-result {
+    flex-direction: column !important;
+    text-align: center !important;
+    align-items: center !important;
+    gap: 1rem !important;
+  }
+
+  .kiosk-product-result .product-image-container {
+    width: 130px !important;
+    height: 130px !important;
+  }
+
+  .kiosk-product-result .product-name {
+    font-size: 1.35rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .kiosk-product-result .product-price {
+    font-size: 2.4rem !important;
+  }
+
+  .kiosk-product-result .old-price {
+    font-size: 1.2rem !important;
+  }
+
+  .kiosk-product-result .new-price {
+    font-size: 2.4rem !important;
+  }
+
+  .kiosk-product-error .error-icon {
+    font-size: 3rem !important;
+  }
+
+  .kiosk-product-error h2 {
+    font-size: 1.3rem !important;
+  }
+
+  .kiosk-product-error .error-detail {
+    font-size: 0.85rem !important;
+  }
+
+  .kiosk-input-wrapper {
+    gap: 6px !important;
+  }
+
+  .kiosk-input-bar {
+    gap: 8px !important;
+    padding: 6px 8px 6px 14px !important;
+  }
+
+  .kiosk-input-icon {
+    font-size: 1.2rem !important;
+  }
+
+  .kiosk-manual-input {
+    font-size: 1rem !important;
+  }
+
+  .kiosk-camera-btn,
+  .kiosk-numpad-toggle-btn {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: 1.1rem !important;
+  }
+
+  .kiosk-manual-search-btn {
+    padding: 0 0.8rem !important;
+    height: 38px !important;
+    font-size: 0.85rem !important;
+  }
+
+  #kioskTouchNumpad {
+    padding: 0.8rem !important;
+    margin-top: 4px !important;
+  }
+
+  .numpad-btn {
+    height: 46px !important;
+    font-size: 1.2rem !important;
+  }
+
+  .numpad-btn-success {
+    height: 42px !important;
+    font-size: 0.95rem !important;
+  }
+
+  #kioskGuideMessage {
+    font-size: 1rem !important;
+  }
+
+  .kiosk-footer {
+    font-size: 0.75rem !important;
+  }
 }

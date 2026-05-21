@@ -1052,26 +1052,9 @@ async function renderKiosk() {
           <span>Veriler yükleniyor. Lütfen bekleyin...</span>
         </div>
 
-        <!-- Camera Scanner Card -->
-        <div class="glass-panel scanner-card" id="scannerCard" style="display:none;">
-          <!-- State 1: Placeholder (Icon & Text) -->
-          <div id="scannerPlaceholder" class="scanner-placeholder-state">
-            <div class="scanner-icon-glow">
-              <i class="ph ph-qr-code scanner-placeholder-icon"></i>
-            </div>
-            <span class="scanner-placeholder-text">Barkod Taramak İçin Dokunun</span>
-          </div>
-
-          <!-- State 2: Camera Stream -->
-          <div id="scannerCameraState" class="scanner-camera-state" style="display:none;">
-            <div id="reader" style="width:100%; height:100%;"></div>
-            <div class="scanner-laser"></div>
-          </div>
-
-          <!-- State 3: Product Image -->
-          <div id="scannerImageState" class="scanner-image-state" style="display:none;">
-            <img id="scannerProductImg" class="scanner-product-img" src="" alt="Ürün Resmi">
-          </div>
+        <!-- Central Display Area: Shows Welcome Screen or Product Details -->
+        <div class="glass-panel central-display-card" id="centralDisplayCard" style="display:none;">
+          <!-- Initially shows welcome state, later replaced with product details -->
         </div>
 
         <!-- Manual Barcode Input Wrapper -->
@@ -1079,6 +1062,12 @@ async function renderKiosk() {
           <div class="kiosk-input-bar glass-panel">
             <i class="ph ph-barcode kiosk-input-icon"></i>
             <input type="text" id="kioskManualInput" class="kiosk-manual-input" placeholder="Barkod No Giriniz" inputmode="none" autocomplete="off">
+            
+            <!-- Camera Scan Button next to numpad -->
+            <button class="kiosk-camera-btn guntas-glowing-btn" id="kioskCameraBtn" title="Kamera ile Oku">
+              <i class="ph ph-camera"></i>
+            </button>
+
             <button class="kiosk-numpad-toggle-btn" id="kioskNumpadToggleBtn" title="Numaratör">
               <i class="ph ph-keypad"></i>
             </button>
@@ -1115,11 +1104,6 @@ async function renderKiosk() {
           </div>
         </div>
 
-        <!-- Product Card Display (Initially Hidden) -->
-        <div class="glass-panel product-card" id="kioskProductCard" style="display:none;">
-          <!-- Loaded product details -->
-        </div>
-
         <!-- Helper guidance message -->
         <div style="font-size: 1.3rem; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; opacity:0.8;" id="kioskGuideMessage">
           <i class="ph ph-hand-pointing" style="vertical-align:middle; font-size:1.8rem;" class="text-teal"></i> Lütfen ürün barkodunu okutun
@@ -1136,6 +1120,21 @@ async function renderKiosk() {
         </div>
         <button class="btn btn-danger" id="exitKioskBtn" style="padding:0.4rem 1rem; font-size:0.8rem;"><i class="ph ph-sign-out"></i> Kiosk Modundan Çık</button>
         <div>Güntaş İndex Kurumsal</div>
+      </div>
+    </div>
+
+    <!-- Camera Modal Backdrop -->
+    <div class="kiosk-modal-backdrop" id="cameraModal" style="display:none;">
+      <div class="kiosk-modal-content glass-panel">
+        <button class="kiosk-modal-close-btn" id="closeCameraModalBtn" title="Kapat">
+          <i class="ph ph-x"></i>
+        </button>
+        <h3 class="modal-title"><i class="ph ph-camera"></i> Barkod & QR Tara</h3>
+        <div class="modal-scanner-container">
+          <div id="reader" style="width:100%; height:100%;"></div>
+          <div class="scanner-laser"></div>
+        </div>
+        <div class="modal-footer-text">Barkod, QR veya Barkod Sayılarını Kameraya Okutun</div>
       </div>
     </div>
   `;
@@ -1262,6 +1261,45 @@ async function renderKiosk() {
     }
   });
 
+  // Bind camera modal open button
+  const cameraBtn = document.getElementById('kioskCameraBtn');
+  if (cameraBtn) {
+    cameraBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCameraModal();
+    });
+  }
+
+  // Bind camera modal close button
+  const closeBtn = document.getElementById('closeCameraModalBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeCameraModal();
+    });
+  }
+
+  // Close modal when clicking on backdrop
+  const modal = document.getElementById('cameraModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeCameraModal();
+      }
+    });
+  }
+
+  // Click on central card to trigger camera modal if it's in welcome state
+  const centralDisplay = document.getElementById('centralDisplayCard');
+  if (centralDisplay) {
+    centralDisplay.addEventListener('click', () => {
+      const isProductShown = centralDisplay.querySelector('.kiosk-product-result') || centralDisplay.querySelector('.kiosk-product-error');
+      if (!isProductShown) {
+        openCameraModal();
+      }
+    });
+  }
+
   // Load XML feed for lookups
   try {
     const settings = await api.fetchSettings();
@@ -1277,23 +1315,12 @@ async function renderKiosk() {
   } catch (err) {
     console.warn('Ayarlar alınamadı (Sadece yerel veritabanı aktif):', err);
   } finally {
-    // Hide loader, show camera scanner card and manual input wrapper
+    // Hide loader and show manual input wrapper
     const loader = document.getElementById('kioskLoader');
     if (loader) loader.style.display = 'none';
     
-    const scannerCard = document.getElementById('scannerCard');
-    if (scannerCard) {
-      scannerCard.style.display = 'flex';
-      resetScannerUI();
-
-      // Click to start scanning
-      scannerCard.addEventListener('click', () => {
-        const cameraState = document.getElementById('scannerCameraState');
-        if (cameraState && cameraState.style.display === 'none') {
-          startScanner();
-        }
-      });
-    }
+    // Show welcome state inside centralDisplayCard initially
+    showWelcomeState();
     
     const kioskInputWrapper = document.getElementById('kioskInputWrapper');
     if (kioskInputWrapper) kioskInputWrapper.style.display = 'block';
@@ -1337,15 +1364,47 @@ async function renderKiosk() {
   kioskStatusInterval = setInterval(updateStatusInfo, 30000);
 }
 
-// BARCODE SCANNER UI MANAGEMENT
-function resetScannerUI() {
-  stopScanner();
-  const placeholder = document.getElementById('scannerPlaceholder');
-  const cameraState = document.getElementById('scannerCameraState');
-  const imageState = document.getElementById('scannerImageState');
-  if (placeholder) placeholder.style.display = 'flex';
-  if (cameraState) cameraState.style.display = 'none';
-  if (imageState) imageState.style.display = 'none';
+// camera modal and welcome state functions
+function openCameraModal() {
+  const modal = document.getElementById('cameraModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    startScanner();
+  }
+}
+
+function closeCameraModal() {
+  const modal = document.getElementById('cameraModal');
+  if (modal) {
+    modal.style.display = 'none';
+    stopScanner();
+  }
+}
+
+function showWelcomeState() {
+  const centralDisplay = document.getElementById('centralDisplayCard');
+  if (centralDisplay) {
+    centralDisplay.innerHTML = `
+      <div class="kiosk-welcome-state">
+        <div class="scanner-icon-glow">
+          <i class="ph ph-barcode scanner-placeholder-icon"></i>
+        </div>
+        <h2 class="welcome-title">Hoş Geldiniz</h2>
+        <p class="welcome-subtitle">Lütfen sorgulamak istediğiniz ürünün barkodunu okutunuz.</p>
+        <div class="welcome-features">
+          <span class="feature-tag"><i class="ph ph-barcode"></i> Barkod</span>
+          <span class="feature-tag"><i class="ph ph-qr-code"></i> QR Kod</span>
+          <span class="feature-tag"><i class="ph ph-keyboard"></i> Manuel Giriş</span>
+        </div>
+      </div>
+    `;
+    centralDisplay.style.display = 'flex';
+  }
+  
+  const guideMessage = document.getElementById('kioskGuideMessage');
+  if (guideMessage) {
+    guideMessage.style.display = 'block';
+  }
 }
 
 // BARCODE SCANNER LOGIC USING HTML5-QRCODE
@@ -1360,41 +1419,39 @@ function startScanner() {
 
   console.log('[SCANNER] Başlatılıyor...');
 
-  // Update UI states
-  const placeholder = document.getElementById('scannerPlaceholder');
-  const cameraState = document.getElementById('scannerCameraState');
-  const imageState = document.getElementById('scannerImageState');
-  if (placeholder) placeholder.style.display = 'none';
-  if (cameraState) cameraState.style.display = 'block';
-  if (imageState) imageState.style.display = 'none';
-
   // Configure specific barcode formats to speed up scanning and avoid processing unnecessary types
   let formats = [];
-  if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+  const supported = window.Html5QrcodeSupportedFormats || (window.Html5Qrcode && window.Html5Qrcode.SupportedFormats);
+  if (supported) {
     formats = [
-      Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.EAN_8,
-      Html5QrcodeSupportedFormats.CODE_128,
-      Html5QrcodeSupportedFormats.UPC_A,
-      Html5QrcodeSupportedFormats.UPC_E,
-      Html5QrcodeSupportedFormats.CODE_39,
-      Html5QrcodeSupportedFormats.QR_CODE
+      supported.QR_CODE,
+      supported.EAN_13,
+      supported.EAN_8,
+      supported.CODE_128,
+      supported.CODE_39,
+      supported.UPC_A,
+      supported.UPC_E,
+      supported.ITF
     ];
   }
 
-  // Instantiate with optimized formats support
-  html5QrcodeScanner = new Html5Qrcode("reader", {
-    formatsToSupport: formats,
+  const scannerOptions = {
     verbose: false
-  });
+  };
+  if (formats && formats.length > 0) {
+    scannerOptions.formatsToSupport = formats;
+  }
+
+  // Instantiate with optimized formats support
+  html5QrcodeScanner = new Html5Qrcode("reader", scannerOptions);
 
   // Optimized scanner parameters
   const config = {
-    fps: 20, // Increased from 10 to 20 for faster scan frame analysis
+    fps: 25, // High FPS for quick scanning
     qrbox: (width, height) => {
-      // Barcode formats are wide, so make scanning box wide and short
-      const boxWidth = Math.min(width * 0.85, 420);
-      const boxHeight = Math.min(height * 0.35, 120);
+      // Make it slightly larger on mobile to easily capture QR/Barcodes
+      const boxWidth = Math.min(width * 0.85, 380);
+      const boxHeight = Math.min(height * 0.5, 220);
       return { width: boxWidth, height: boxHeight };
     },
     aspectRatio: 1.333333,
@@ -1404,15 +1461,14 @@ function startScanner() {
       useBarCodeDetectorIfSupported: true
     },
     videoConstraints: {
+      facingMode: "environment", // STRICTLY force rear camera
       width: { min: 640, ideal: 1280, max: 1920 },
       height: { min: 480, ideal: 720, max: 1080 }
     }
   };
 
-  // Video resolution constraints: Thin barcode lines require higher resolution (720p/1080p ideal)
-  // Standard webcam/browser stream is often low res (e.g. 320x240 or 640x480), causing blurry lines.
   const cameraConfig = {
-    facingMode: "environment"
+    facingMode: "environment" // STRICTLY force rear camera
   };
 
   // Start scanning
@@ -1421,8 +1477,8 @@ function startScanner() {
     config,
     async (decodedText) => {
       // Success callback
-      console.log(`[SCANNER] Kamera barkod okudu: ${decodedText}`);
-      stopScanner();
+      console.log(`[SCANNER] Kamera barkod okundu: ${decodedText}`);
+      closeCameraModal();
       await lookupKioskBarcode(decodedText);
     },
     (errorMessage) => {
@@ -1431,21 +1487,26 @@ function startScanner() {
   ).catch(err => {
     console.error('[SCANNER] Kamera başlatılamadı:', err);
     showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
-    resetScannerUI();
+    closeCameraModal();
   });
 }
 
 function stopScanner() {
-  if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-    console.log('[SCANNER] Durduruluyor...');
-    html5QrcodeScanner.stop().catch(err => console.warn('Scanner stop error:', err));
+  if (html5QrcodeScanner) {
+    if (html5QrcodeScanner.isScanning) {
+      console.log('[SCANNER] Durduruluyor...');
+      const scannerRef = html5QrcodeScanner;
+      scannerRef.stop().then(() => {
+        scannerRef.clear();
+      }).catch(err => console.warn('Scanner stop/clear error:', err));
+    }
+    html5QrcodeScanner = null;
   }
-  html5QrcodeScanner = null;
 }
 
 // LOOKUP BARCODE AND SHOW PRODUCT DETAILS
 async function lookupKioskBarcode(barcode) {
-  const productCard = document.getElementById('kioskProductCard');
+  const centralDisplay = document.getElementById('centralDisplayCard');
   const guideMessage = document.getElementById('kioskGuideMessage');
   const branchId = api.currentUser.id;
 
@@ -1465,88 +1526,73 @@ async function lookupKioskBarcode(barcode) {
     numpadToggleBtn.classList.remove('active');
   }
 
-  // Ensure camera scanner is stopped
-  stopScanner();
+  // Ensure camera modal is closed and scanner is stopped
+  const modal = document.getElementById('cameraModal');
+  if (modal && modal.style.display !== 'none') {
+    modal.style.display = 'none';
+    stopScanner();
+  }
 
   try {
     const product = await api.getProduct(branchId, barcode);
-    
-    // Manage scanner card images
-    const scannerProductImg = document.getElementById('scannerProductImg');
-    const placeholder = document.getElementById('scannerPlaceholder');
-    const cameraState = document.getElementById('scannerCameraState');
-    const imageState = document.getElementById('scannerImageState');
 
     if (!product) {
       // Product not found, play buzzer
       offlineAudio.playError();
       showToast('Ürün bulunamadı!', 'error');
 
-      // Reset scanner UI
-      if (placeholder) placeholder.style.display = 'flex';
-      if (cameraState) cameraState.style.display = 'none';
-      if (imageState) imageState.style.display = 'none';
-      
-      productCard.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align:center; padding:1.5rem; color:var(--color-error); font-weight:700; font-size:1.5rem; display:flex; flex-direction:column; align-items:center; gap:10px;">
-          <i class="ph ph-x-circle" style="font-size:3.5rem;"></i>
-          <span>Ürün Bulunamadı</span>
-          <span style="font-size:1rem; font-weight:400;" class="text-muted">Bu ürün şube veritabanında kayıtlı değildir.</span>
+      centralDisplay.innerHTML = `
+        <div class="kiosk-product-error">
+          <i class="ph ph-x-circle error-icon"></i>
+          <h2>Ürün Bulunamadı</h2>
+          <p class="error-detail">"${barcode}" barkodlu ürün şube veritabanında veya XML listesinde kayıtlı değildir.</p>
         </div>
       `;
-      productCard.style.display = 'grid';
-      guideMessage.style.display = 'none';
+      if (guideMessage) guideMessage.style.display = 'none';
     } else {
       // Success lookup, play beep sound
       offlineAudio.playSuccess();
 
-      // Show product image inside the scannerCard if it exists
-      if (product.image) {
-        if (scannerProductImg) scannerProductImg.src = product.image;
-        if (placeholder) placeholder.style.display = 'none';
-        if (cameraState) cameraState.style.display = 'none';
-        if (imageState) imageState.style.display = 'flex';
-      } else {
-        if (placeholder) placeholder.style.display = 'flex';
-        if (cameraState) cameraState.style.display = 'none';
-        if (imageState) imageState.style.display = 'none';
-      }
-
       const isDiscounted = product.discount_price && parseFloat(product.discount_price) > 0 && parseFloat(product.discount_price) < parseFloat(product.price);
 
-      // Render product details centered (without duplicate image container)
-      productCard.classList.add('no-image');
-      productCard.innerHTML = `
-        <div class="product-details" style="text-align: center; width: 100%;">
-          <div class="product-barcode">${product.barcode}</div>
-          <h2 class="product-name" style="font-size: 1.8rem; margin: 0.5rem 0 1rem 0;">${product.name}</h2>
-          ${isDiscounted ? `
-            <div class="discount-badge-container" style="justify-content: center;">
-              <span class="discount-badge"><i class="ph ph-tag"></i> ÖZEL FİYAT / KAMPANYA</span>
+      // Render product details inside centralDisplay
+      centralDisplay.innerHTML = `
+        <div class="kiosk-product-result fade-in-up ${product.image ? '' : 'no-image'}">
+          ${product.image ? `
+            <div class="product-image-container">
+              <img src="${product.image}" class="product-image" alt="${product.name}" onerror="this.style.display='none';">
             </div>
-            <div class="price-container discounted" style="justify-content: center;">
-              <span class="old-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-              <span class="new-price">${parseFloat(product.discount_price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-            </div>
-          ` : `
-            <div style="font-size:0.9rem;" class="text-muted">Fiyat Gör Fiyatı</div>
-            <div class="product-price" style="font-size: 3rem; margin-top: 0.5rem;">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</div>
-          `}
+          ` : ''}
+          <div class="product-info-container">
+            <div class="product-barcode">${product.barcode}</div>
+            <h2 class="product-name">${product.name}</h2>
+            ${isDiscounted ? `
+              <div class="discount-badge-container">
+                <span class="discount-badge"><i class="ph ph-tag"></i> ÖZEL FİYAT / KAMPANYA</span>
+              </div>
+              <div class="price-container discounted">
+                <span class="old-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+                <span class="new-price">${parseFloat(product.discount_price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+              </div>
+            ` : `
+              <div class="price-label">Fiyat Gör Fiyatı</div>
+              <div class="product-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</div>
+            `}
+          </div>
         </div>
       `;
-      productCard.style.display = 'grid';
-      guideMessage.style.display = 'none';
-      
-      // Trigger simple pop animation
-      productCard.classList.remove('fade-in-up');
-      void productCard.offsetWidth; // trigger reflow
-      productCard.classList.add('fade-in-up');
+      if (guideMessage) guideMessage.style.display = 'none';
     }
   } catch (err) {
     offlineAudio.playError();
-    productCard.innerHTML = `<div style="grid-column: 1 / -1; color:var(--color-error); font-weight:600; padding:2rem;">Sistem Hatası: ${err.message}</div>`;
-    productCard.style.display = 'grid';
-    guideMessage.style.display = 'none';
+    centralDisplay.innerHTML = `
+      <div class="kiosk-product-error">
+        <i class="ph ph-warning-circle error-icon"></i>
+        <h2>Sistem Hatası</h2>
+        <p class="error-detail">${err.message}</p>
+      </div>
+    `;
+    if (guideMessage) guideMessage.style.display = 'none';
   }
 
   // Refocus on USB input scanner
@@ -1554,11 +1600,9 @@ async function lookupKioskBarcode(barcode) {
     window.kioskClickHandler();
   }
 
-  // Clear card display and guide user after 7 seconds of inactivity, and reset scanner card to placeholder state
+  // Clear card display and guide user after 7 seconds of inactivity, and reset to welcome state
   kioskResetTimeout = setTimeout(() => {
-    productCard.style.display = 'none';
-    guideMessage.style.display = 'block';
-    resetScannerUI();
+    showWelcomeState();
   }, 7000);
 }
 
