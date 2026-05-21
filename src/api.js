@@ -354,8 +354,8 @@ class ApiService {
       // Barcode: 0 to 40 (trimmed)
       // Name: 80 to 160 (trimmed)
       // Price 1: 160 to 180 (trimmed)
+      // Discount Rate: 180 to 200 (trimmed) - Price 2 (Discount percentage)
       // Price 4: 220 to 240 (trimmed) - Target Price 4
-      // Discount Rate: 240 to 260 (trimmed) - Price 5 (Discount percentage)
       for (const line of lines) {
         if (line.length < 180) continue;
         const barcode = line.substring(0, 40).trim();
@@ -374,9 +374,9 @@ class ApiService {
         }
 
         let discount_price = null;
-        if (line.length >= 260) {
-          const p5Val = line.substring(240, 260).trim().replace(',', '.');
-          const discountRate = parseFloat(p5Val) || 0;
+        if (line.length >= 200) {
+          const p2Val = line.substring(180, 200).trim().replace(',', '.');
+          const discountRate = parseFloat(p2Val) || 0;
           if (discountRate > 0 && discountRate < 100) {
             discount_price = Math.round((price - (price * discountRate / 100)) * 100) / 100;
           }
@@ -400,10 +400,13 @@ class ApiService {
           if (barcode && details.length >= 2) {
             const name = details[0].trim();
             
-            // 4th price in order: details[4] (if exists), fallback to details[1] (1st price)
+            // 4th price in order: details[4] (if exists and > 0), fallback to details[1] (1st price)
             let priceVal = details[1];
             if (details.length >= 5 && details[4] !== undefined && details[4].trim() !== '') {
-              priceVal = details[4];
+              const p4 = parseFloat(details[4].replace(',', '.')) || 0;
+              if (p4 > 0) {
+                priceVal = details[4];
+              }
             }
             const price = parseFloat(priceVal.replace(',', '.')) || 0;
 

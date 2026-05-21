@@ -79,8 +79,8 @@ function parseIniFile(iniText) {
     // Barcode: 0 to 40 (trimmed)
     // Name: 80 to 160 (trimmed)
     // Price 1: 160 to 180 (trimmed)
+    // Discount Rate: 180 to 200 (trimmed) - Price 2 (Discount percentage)
     // Price 4: 220 to 240 (trimmed) - Target Price 4
-    // Discount Rate: 240 to 260 (trimmed) - Price 5 (Discount percentage)
     for (const line of lines) {
       if (line.length < 180) continue;
       const barcode = line.substring(0, 40).trim();
@@ -99,9 +99,9 @@ function parseIniFile(iniText) {
       }
 
       let discount_price = null;
-      if (line.length >= 260) {
-        const p5Val = line.substring(240, 260).trim().replace(',', '.');
-        const discountRate = parseFloat(p5Val) || 0;
+      if (line.length >= 200) {
+        const p2Val = line.substring(180, 200).trim().replace(',', '.');
+        const discountRate = parseFloat(p2Val) || 0;
         if (discountRate > 0 && discountRate < 100) {
           discount_price = Math.round((price - (price * discountRate / 100)) * 100) / 100;
         }
@@ -164,7 +164,9 @@ async function run() {
   try {
     console.log('Reading file...');
     const startRead = Date.now();
-    const content = fs.readFileSync('C:\\Users\\User\\Desktop\\YAZARKASA_STOKLAR.ini', 'binary');
+    const buffer = fs.readFileSync('C:\\Users\\User\\Desktop\\YAZARKASA_STOKLAR.ini');
+    const decoder = new TextDecoder('windows-1254');
+    const content = decoder.decode(buffer);
     console.log('File read done in', Date.now() - startRead, 'ms');
 
     console.log('Parsing file...');
@@ -180,6 +182,7 @@ async function run() {
       barcode: item.barcode,
       name: item.name,
       price: item.price,
+      discount_price: item.discount_price || null,
       updated_at: new Date().toISOString()
     }));
 
