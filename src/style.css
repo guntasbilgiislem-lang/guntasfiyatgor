@@ -413,15 +413,28 @@ h1, h2, h3, h4, h5, h6 {
   overflow: hidden;
 }
 
-/* Camera Scanner Container */
+/* Camera Scanner Container (Interactive) */
 .scanner-card {
   width: 100%;
   max-width: 380px;
-  aspect-ratio: 16/10;
+  aspect-ratio: 1.25; /* 5:4 aspect ratio, perfect for displaying scanner, placeholder, and image */
   overflow: hidden;
   position: relative;
   border-radius: var(--radius-lg);
   border: 2px solid var(--color-border);
+  background: rgba(10, 25, 41, 0.6);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scanner-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-secondary);
+  box-shadow: 0 12px 30px rgba(0, 229, 255, 0.15);
 }
 
 .scanner-video {
@@ -441,6 +454,107 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 15px 3px var(--color-secondary);
   animation: laserSweep 2s infinite ease-in-out;
   pointer-events: none;
+}
+
+.scanner-placeholder-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.scanner-icon-glow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.05);
+  transition: all 0.3s ease;
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+.scanner-card:hover .scanner-icon-glow {
+  background: rgba(0, 229, 255, 0.18);
+  border-color: rgba(0, 229, 255, 0.6);
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.scanner-placeholder-icon {
+  font-size: 3.2rem;
+  color: var(--color-secondary);
+  transition: all 0.3s ease;
+}
+
+.scanner-placeholder-text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  transition: all 0.3s ease;
+}
+
+.scanner-card:hover .scanner-placeholder-text {
+  color: var(--color-text);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.05);
+    border-color: rgba(0, 229, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(0, 229, 255, 0.25);
+    border-color: rgba(0, 229, 255, 0.7);
+  }
+}
+
+.scanner-camera-state {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+}
+
+.scanner-image-state {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 1.2rem;
+}
+
+.scanner-product-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: scaleIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes scaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Product Info Glass Panel */

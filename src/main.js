@@ -1054,8 +1054,24 @@ async function renderKiosk() {
 
         <!-- Camera Scanner Card -->
         <div class="glass-panel scanner-card" id="scannerCard" style="display:none;">
-          <div id="reader" style="width:100%; height:100%;"></div>
-          <div class="scanner-laser"></div>
+          <!-- State 1: Placeholder (Icon & Text) -->
+          <div id="scannerPlaceholder" class="scanner-placeholder-state">
+            <div class="scanner-icon-glow">
+              <i class="ph ph-qr-code scanner-placeholder-icon"></i>
+            </div>
+            <span class="scanner-placeholder-text">Barkod Taramak İçin Dokunun</span>
+          </div>
+
+          <!-- State 2: Camera Stream -->
+          <div id="scannerCameraState" class="scanner-camera-state" style="display:none;">
+            <div id="reader" style="width:100%; height:100%;"></div>
+            <div class="scanner-laser"></div>
+          </div>
+
+          <!-- State 3: Product Image -->
+          <div id="scannerImageState" class="scanner-image-state" style="display:none;">
+            <img id="scannerProductImg" class="scanner-product-img" src="" alt="Ürün Resmi">
+          </div>
         </div>
 
         <!-- Manual Barcode Input Wrapper -->
@@ -1266,13 +1282,21 @@ async function renderKiosk() {
     if (loader) loader.style.display = 'none';
     
     const scannerCard = document.getElementById('scannerCard');
-    if (scannerCard) scannerCard.style.display = 'block';
+    if (scannerCard) {
+      scannerCard.style.display = 'flex';
+      resetScannerUI();
+
+      // Click to start scanning
+      scannerCard.addEventListener('click', () => {
+        const cameraState = document.getElementById('scannerCameraState');
+        if (cameraState && cameraState.style.display === 'none') {
+          startScanner();
+        }
+      });
+    }
     
     const kioskInputWrapper = document.getElementById('kioskInputWrapper');
     if (kioskInputWrapper) kioskInputWrapper.style.display = 'block';
-
-    // Start HTML5 Camera Barcode Scanner
-    startScanner();
   }
 
 
@@ -1313,6 +1337,17 @@ async function renderKiosk() {
   kioskStatusInterval = setInterval(updateStatusInfo, 30000);
 }
 
+// BARCODE SCANNER UI MANAGEMENT
+function resetScannerUI() {
+  stopScanner();
+  const placeholder = document.getElementById('scannerPlaceholder');
+  const cameraState = document.getElementById('scannerCameraState');
+  const imageState = document.getElementById('scannerImageState');
+  if (placeholder) placeholder.style.display = 'flex';
+  if (cameraState) cameraState.style.display = 'none';
+  if (imageState) imageState.style.display = 'none';
+}
+
 // BARCODE SCANNER LOGIC USING HTML5-QRCODE
 function startScanner() {
   if (typeof Html5Qrcode === 'undefined') {
@@ -1324,6 +1359,14 @@ function startScanner() {
   stopScanner();
 
   console.log('[SCANNER] Başlatılıyor...');
+
+  // Update UI states
+  const placeholder = document.getElementById('scannerPlaceholder');
+  const cameraState = document.getElementById('scannerCameraState');
+  const imageState = document.getElementById('scannerImageState');
+  if (placeholder) placeholder.style.display = 'none';
+  if (cameraState) cameraState.style.display = 'block';
+  if (imageState) imageState.style.display = 'none';
 
   // Configure specific barcode formats to speed up scanning and avoid processing unnecessary types
   let formats = [];
@@ -1379,6 +1422,7 @@ function startScanner() {
     async (decodedText) => {
       // Success callback
       console.log(`[SCANNER] Kamera barkod okudu: ${decodedText}`);
+      stopScanner();
       await lookupKioskBarcode(decodedText);
     },
     (errorMessage) => {
@@ -1387,6 +1431,7 @@ function startScanner() {
   ).catch(err => {
     console.error('[SCANNER] Kamera başlatılamadı:', err);
     showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
+    resetScannerUI();
   });
 }
 
@@ -1420,13 +1465,27 @@ async function lookupKioskBarcode(barcode) {
     numpadToggleBtn.classList.remove('active');
   }
 
+  // Ensure camera scanner is stopped
+  stopScanner();
+
   try {
     const product = await api.getProduct(branchId, barcode);
     
+    // Manage scanner card images
+    const scannerProductImg = document.getElementById('scannerProductImg');
+    const placeholder = document.getElementById('scannerPlaceholder');
+    const cameraState = document.getElementById('scannerCameraState');
+    const imageState = document.getElementById('scannerImageState');
+
     if (!product) {
       // Product not found, play buzzer
       offlineAudio.playError();
       showToast('Ürün bulunamadı!', 'error');
+
+      // Reset scanner UI
+      if (placeholder) placeholder.style.display = 'flex';
+      if (cameraState) cameraState.style.display = 'none';
+      if (imageState) imageState.style.display = 'none';
       
       productCard.innerHTML = `
         <div style="grid-column: 1 / -1; text-align:center; padding:1.5rem; color:var(--color-error); font-weight:700; font-size:1.5rem; display:flex; flex-direction:column; align-items:center; gap:10px;">
@@ -1441,52 +1500,40 @@ async function lookupKioskBarcode(barcode) {
       // Success lookup, play beep sound
       offlineAudio.playSuccess();
 
+      // Show product image inside the scannerCard if it exists
+      if (product.image) {
+        if (scannerProductImg) scannerProductImg.src = product.image;
+        if (placeholder) placeholder.style.display = 'none';
+        if (cameraState) cameraState.style.display = 'none';
+        if (imageState) imageState.style.display = 'flex';
+      } else {
+        if (placeholder) placeholder.style.display = 'flex';
+        if (cameraState) cameraState.style.display = 'none';
+        if (imageState) imageState.style.display = 'none';
+      }
+
       const isDiscounted = product.discount_price && parseFloat(product.discount_price) > 0 && parseFloat(product.discount_price) < parseFloat(product.price);
 
-      if (product.image) {
-        productCard.classList.remove('no-image');
-        productCard.innerHTML = `
-          <div class="product-image-container">
-            <img src="${product.image}" class="product-image" alt="${product.name}">
-          </div>
-          <div class="product-details">
-            <div class="product-barcode">${product.barcode}</div>
-            <h2 class="product-name">${product.name}</h2>
-            ${isDiscounted ? `
-              <div class="discount-badge-container">
-                <span class="discount-badge"><i class="ph ph-tag"></i> ÖZEL FİYAT / KAMPANYA</span>
-              </div>
-              <div class="price-container discounted">
-                <span class="old-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                <span class="new-price">${parseFloat(product.discount_price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-              </div>
-            ` : `
-              <div style="font-size:0.85rem;" class="text-muted">Fiyat Gör Fiyatı</div>
-              <div class="product-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</div>
-            `}
-          </div>
-        `;
-      } else {
-        productCard.classList.add('no-image');
-        productCard.innerHTML = `
-          <div class="product-details" style="text-align: center; width: 100%;">
-            <div class="product-barcode">${product.barcode}</div>
-            <h2 class="product-name" style="font-size: 1.8rem; margin: 0.5rem 0 1rem 0;">${product.name}</h2>
-            ${isDiscounted ? `
-              <div class="discount-badge-container" style="justify-content: center;">
-                <span class="discount-badge"><i class="ph ph-tag"></i> ÖZEL FİYAT / KAMPANYA</span>
-              </div>
-              <div class="price-container discounted" style="justify-content: center;">
-                <span class="old-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-                <span class="new-price">${parseFloat(product.discount_price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
-              </div>
-            ` : `
-              <div style="font-size:0.9rem;" class="text-muted">Fiyat Gör Fiyatı</div>
-              <div class="product-price" style="font-size: 3rem; margin-top: 0.5rem;">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</div>
-            `}
-          </div>
-        `;
-      }
+      // Render product details centered (without duplicate image container)
+      productCard.classList.add('no-image');
+      productCard.innerHTML = `
+        <div class="product-details" style="text-align: center; width: 100%;">
+          <div class="product-barcode">${product.barcode}</div>
+          <h2 class="product-name" style="font-size: 1.8rem; margin: 0.5rem 0 1rem 0;">${product.name}</h2>
+          ${isDiscounted ? `
+            <div class="discount-badge-container" style="justify-content: center;">
+              <span class="discount-badge"><i class="ph ph-tag"></i> ÖZEL FİYAT / KAMPANYA</span>
+            </div>
+            <div class="price-container discounted" style="justify-content: center;">
+              <span class="old-price">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+              <span class="new-price">${parseFloat(product.discount_price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</span>
+            </div>
+          ` : `
+            <div style="font-size:0.9rem;" class="text-muted">Fiyat Gör Fiyatı</div>
+            <div class="product-price" style="font-size: 3rem; margin-top: 0.5rem;">${parseFloat(product.price).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺</div>
+          `}
+        </div>
+      `;
       productCard.style.display = 'grid';
       guideMessage.style.display = 'none';
       
@@ -1507,10 +1554,11 @@ async function lookupKioskBarcode(barcode) {
     window.kioskClickHandler();
   }
 
-  // Clear card display and guide user after 7 seconds of inactivity
+  // Clear card display and guide user after 7 seconds of inactivity, and reset scanner card to placeholder state
   kioskResetTimeout = setTimeout(() => {
     productCard.style.display = 'none';
     guideMessage.style.display = 'block';
+    resetScannerUI();
   }, 7000);
 }
 
