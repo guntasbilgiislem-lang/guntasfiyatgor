@@ -1408,7 +1408,7 @@ function showWelcomeState() {
 }
 
 // BARCODE SCANNER LOGIC USING HTML5-QRCODE
-function startScanner() {
+async function startScanner() {
   if (typeof Html5Qrcode === 'undefined') {
     console.warn('Html5Qrcode kütüphanesi yüklenemedi.');
     return;
@@ -1445,27 +1445,103 @@ function startScanner() {
   // Instantiate with optimized formats support
   html5QrcodeScanner = new Html5Qrcode("reader", scannerOptions);
 
-  // Optimized scanner parameters
+  // Optimized scanner parameters for reliable barcode reading
   const config = {
-    fps: 25, // High FPS for quick scanning
+    fps: 15, // Lower FPS gives the decoder more time per frame for accurate reads
     qrbox: (width, height) => {
-      // For mobile portrait screens, width is smaller. EAN-13/8 barcodes are wide and short.
-      // An optimal scanning box is wider and shorter to focus on 1D barcode lines and capture QR codes.
-      const boxWidth = Math.min(width * 0.9, 360);
-      const boxHeight = Math.min(height * 0.45, 160);
-      return { width: boxWidth, height: boxHeight };
+      // Wider and taller scanning box for better barcode capture.
+      // EAN-13/8 barcodes need a wide horizontal area.
+      // QR codes need a taller box. Use most of the available width.
+      const boxWidth = Math.min(width * 0.92, 500);
+      const boxHeight = Math.min(height * 0.55, 250);
+      return { width: Math.floor(boxWidth), height: Math.floor(boxHeight) };
     },
+    aspectRatio: 1.0, // Square camera view for better framing
     // DISABLE native BarcodeDetector API because it frequently fails on mobile Chrome/Android.
     // Falling back to the robust ZXing WASM/JS library fixes the empty scan (tarıyor boş tarıyor) issue.
     useBarCodeDetectorIfSupported: false,
+    disableFlip: false, // Allow mirrored barcodes
     experimentalFeatures: {
       useBarCodeDetectorIfSupported: false
     }
   };
 
-  const cameraConfig = {
-    facingMode: "environment" // STRICTLY force rear camera
-  };
+  // ---- SMART CAMERA SELECTION ----
+  // On iPhone Pro models (3 cameras: 0.5x ultra-wide, 1x wide, 3x telephoto),
+  // the browser often defaults to the ultra-wide camera which makes barcode reading
+  // very difficult due to distortion. We must explicitly select the standard 1x camera.
+  let cameraId = null;
+
+  try {
+    const devices = await Html5Qrcode.getCameras();
+    console.log('[SCANNER] Bulunan kameralar:', devices.map(d => ({ id: d.id, label: d.label })));
+
+    if (devices && devices.length > 0) {
+      // Filter rear/back cameras
+      const rearCameras = devices.filter(d => {
+        const label = (d.label || '').toLowerCase();
+        return label.includes('back') || label.includes('arka') || label.includes('rear') || label.includes('environment');
+      });
+
+      const camerasToSearch = rearCameras.length > 0 ? rearCameras : devices;
+
+      // On iPhones, camera labels are typically:
+      //   "Back Camera"          -> standard 1x wide (THIS IS WHAT WE WANT)
+      //   "Back Ultra Wide Camera" -> 0.5x ultra-wide
+      //   "Back Telephoto Camera"  -> 2x or 3x telephoto
+      // On some iOS versions they may appear in Turkish or slightly different.
+      // Strategy: pick the rear camera that is NOT ultra-wide and NOT telephoto.
+      // If only one rear camera, use it directly.
+
+      if (camerasToSearch.length === 1) {
+        cameraId = camerasToSearch[0].id;
+        console.log(`[SCANNER] Tek arka kamera bulundu: "${camerasToSearch[0].label}"`);
+      } else {
+        // Multiple rear cameras - find the standard 1x
+        const standard1xCamera = camerasToSearch.find(d => {
+          const label = (d.label || '').toLowerCase();
+          // Exclude ultra wide (0.5x) and telephoto (2x/3x)
+          const isUltraWide = label.includes('ultra') || label.includes('geniş') || label.includes('wide') && !label.includes('camera');
+          const isTelephoto = label.includes('tele') || label.includes('zoom');
+          return !isUltraWide && !isTelephoto;
+        });
+
+        if (standard1xCamera) {
+          cameraId = standard1xCamera.id;
+          console.log(`[SCANNER] Standart 1x kamera seçildi: "${standard1xCamera.label}"`);
+        } else {
+          // Fallback: if we can't identify by label, pick by index.
+          // On iPhones, the standard camera is typically the FIRST back camera listed,
+          // or the SECOND device in the full list (index 1) after the front camera.
+          // Try to find one labeled exactly "Back Camera" (no qualifier)
+          const exactBackCamera = camerasToSearch.find(d => {
+            const label = (d.label || '').toLowerCase().trim();
+            return label === 'back camera' || label === 'arka kamera';
+          });
+
+          if (exactBackCamera) {
+            cameraId = exactBackCamera.id;
+            console.log(`[SCANNER] Tam eşleşme ile 1x kamera bulundu: "${exactBackCamera.label}"`);
+          } else {
+            // Last resort: among rear cameras, pick the one with the shortest label
+            // (usually "Back Camera" is shortest vs "Back Ultra Wide Camera")
+            const sorted = [...camerasToSearch].sort((a, b) => (a.label || '').length - (b.label || '').length);
+            cameraId = sorted[0].id;
+            console.log(`[SCANNER] En kısa isimli arka kamera seçildi: "${sorted[0].label}"`);
+          }
+        }
+      }
+    }
+  } catch (enumErr) {
+    console.warn('[SCANNER] Kamera listeleme hatası, facingMode fallback kullanılacak:', enumErr);
+  }
+
+  // Determine camera config: use specific deviceId if found, otherwise facingMode fallback
+  const cameraConfig = cameraId
+    ? { deviceId: { exact: cameraId } }
+    : { facingMode: "environment" };
+
+  console.log('[SCANNER] Kamera konfigürasyonu:', cameraId ? `deviceId: ${cameraId}` : 'facingMode: environment');
 
   // Start scanning
   html5QrcodeScanner.start(
@@ -1482,8 +1558,27 @@ function startScanner() {
     }
   ).catch(err => {
     console.error('[SCANNER] Kamera başlatılamadı:', err);
-    showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
-    closeCameraModal();
+    // If specific camera failed, retry with generic facingMode
+    if (cameraId) {
+      console.log('[SCANNER] Belirli kamera başarısız, genel arka kamera ile tekrar deneniyor...');
+      html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        async (decodedText) => {
+          console.log(`[SCANNER] Kamera barkod okundu (fallback): ${decodedText}`);
+          closeCameraModal();
+          await lookupKioskBarcode(decodedText);
+        },
+        () => {}
+      ).catch(fallbackErr => {
+        console.error('[SCANNER] Fallback kamera da başarısız:', fallbackErr);
+        showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
+        closeCameraModal();
+      });
+    } else {
+      showToast('Kamera erişim hatası! USB Barkod okuyucu aktif.', 'info');
+      closeCameraModal();
+    }
   });
 }
 

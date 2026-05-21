@@ -312,7 +312,7 @@ class ApiService {
               discount_price
             });
           }
-          currentStock = { barcode: '', name: '', priceDefault: 0 };
+          currentStock = { barcode: '', name: '', priceDefault: 0, price4: undefined, discountRate: 0 };
         } else if (currentStock) {
           const parts = trimmed.split('=');
           if (parts.length >= 2) {
