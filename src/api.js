@@ -300,9 +300,19 @@ class ApiService {
 
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
           if (currentStock && currentStock.barcode) {
-            stocks.push(currentStock);
+            const price = currentStock.price4 !== undefined ? currentStock.price4 : (currentStock.priceDefault || 0);
+            let discount_price = null;
+            if (currentStock.discountRate > 0 && currentStock.discountRate < 100) {
+              discount_price = Math.round((price - (price * currentStock.discountRate / 100)) * 100) / 100;
+            }
+            stocks.push({
+              barcode: currentStock.barcode,
+              name: currentStock.name,
+              price,
+              discount_price
+            });
           }
-          currentStock = { barcode: '', name: '', price: 0 };
+          currentStock = { barcode: '', name: '', priceDefault: 0 };
         } else if (currentStock) {
           const parts = trimmed.split('=');
           if (parts.length >= 2) {
@@ -313,36 +323,62 @@ class ApiService {
               currentStock.barcode = value;
             } else if (key === 'adi' || key === 'name' || key === 'urunadi' || key === 'adi1') {
               currentStock.name = value;
-            } else if (key === 'fiyat' || key === 'price' || key === 'satis_fiyat') {
-              // Convert Turkish decimal format (e.g. 15,50 -> 15.50)
+            } else if (key === 'fiyat4' || key === 'fiyat_4' || key === 'price4' || key === 'satis_fiyati4') {
               const cleanedPrice = value.replace(',', '.');
-              currentStock.price = parseFloat(cleanedPrice) || 0;
+              currentStock.price4 = parseFloat(cleanedPrice) || 0;
+            } else if (key === 'fiyat' || key === 'price' || key === 'satis_fiyat') {
+              const cleanedPrice = value.replace(',', '.');
+              currentStock.priceDefault = parseFloat(cleanedPrice) || 0;
+            } else if (key === 'iskonto' || key === 'iskonto_orani' || key === 'discount_rate') {
+              const cleanedDiscount = value.replace(',', '.');
+              currentStock.discountRate = parseFloat(cleanedDiscount) || 0;
             }
           }
         }
       }
       if (currentStock && currentStock.barcode) {
-        stocks.push(currentStock);
+        const price = currentStock.price4 !== undefined ? currentStock.price4 : (currentStock.priceDefault || 0);
+        let discount_price = null;
+        if (currentStock.discountRate > 0 && currentStock.discountRate < 100) {
+          discount_price = Math.round((price - (price * currentStock.discountRate / 100)) * 100) / 100;
+        }
+        stocks.push({
+          barcode: currentStock.barcode,
+          name: currentStock.name,
+          price,
+          discount_price
+        });
       }
     } else if (isFixedWidth) {
       // Fixed-width format:
       // Barcode: 0 to 40 (trimmed)
       // Name: 80 to 160 (trimmed)
-      // Price: 160 to 180 (trimmed)
-      // Discount Price: 300 to 330 (trimmed)
+      // Price 1: 160 to 180 (trimmed)
+      // Price 4: 220 to 240 (trimmed) - Target Price 4
+      // Discount Rate: 240 to 260 (trimmed) - Price 5 (Discount percentage)
       for (const line of lines) {
         if (line.length < 180) continue;
         const barcode = line.substring(0, 40).trim();
         const name = line.substring(80, 160).trim();
-        const priceVal = line.substring(160, 180).trim().replace(',', '.');
-        const price = parseFloat(priceVal) || 0;
+        
+        const p1Val = line.substring(160, 180).trim().replace(',', '.');
+        const p1 = parseFloat(p1Val) || 0;
+
+        let price = p1;
+        if (line.length >= 240) {
+          const p4Val = line.substring(220, 240).trim().replace(',', '.');
+          const p4 = parseFloat(p4Val) || 0;
+          if (p4 > 0) {
+            price = p4;
+          }
+        }
 
         let discount_price = null;
-        if (line.length >= 330) {
-          const discVal = line.substring(300, 330).trim().replace(',', '.');
-          const parsedDisc = parseFloat(discVal) || 0;
-          if (parsedDisc > 0 && parsedDisc < price) {
-            discount_price = parsedDisc;
+        if (line.length >= 260) {
+          const p5Val = line.substring(240, 260).trim().replace(',', '.');
+          const discountRate = parseFloat(p5Val) || 0;
+          if (discountRate > 0 && discountRate < 100) {
+            discount_price = Math.round((price - (price * discountRate / 100)) * 100) / 100;
           }
         }
 
@@ -363,9 +399,25 @@ class ApiService {
           
           if (barcode && details.length >= 2) {
             const name = details[0].trim();
-            const priceVal = details[1].replace(',', '.');
-            const price = parseFloat(priceVal) || 0;
-            stocks.push({ barcode, name, price });
+            
+            // 4th price in order: details[4] (if exists), fallback to details[1] (1st price)
+            let priceVal = details[1];
+            if (details.length >= 5 && details[4] !== undefined && details[4].trim() !== '') {
+              priceVal = details[4];
+            }
+            const price = parseFloat(priceVal.replace(',', '.')) || 0;
+
+            let discount_price = null;
+            // 5th in order (index 5) is the discount rate
+            if (details.length >= 6 && details[5] !== undefined && details[5].trim() !== '') {
+              const discountRateVal = details[5].replace(',', '.');
+              const discountRate = parseFloat(discountRateVal) || 0;
+              if (discountRate > 0 && discountRate < 100) {
+                discount_price = Math.round((price - (price * discountRate / 100)) * 100) / 100;
+              }
+            }
+
+            stocks.push({ barcode, name, price, discount_price });
           } else if (barcode && details.length === 1) {
             // just barcode and name
             stocks.push({ barcode, name: details[0].trim(), price: 0 });
