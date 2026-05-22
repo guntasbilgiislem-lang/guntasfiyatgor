@@ -665,9 +665,11 @@ class ApiService {
     
     // Convert to map for easy lookup by branch_id
     const uploadsMap = {};
-    data.forEach(item => {
-      uploadsMap[item.branch_id] = item;
-    });
+    if (data) {
+      data.forEach(item => {
+        uploadsMap[item.branch_id] = item;
+      });
+    }
     return uploadsMap;
   }
 

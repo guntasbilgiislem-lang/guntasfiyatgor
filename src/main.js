@@ -1025,19 +1025,21 @@ async function renderAdminSettingsView() {
             // Save raw file
             try {
               await api.saveBranchUpload(selectedBranchId, file.name, text);
+              progressBar.style.width = '100%';
+              progressPercent.innerText = '100%';
+              progressText.innerText = 'Yükleme başarıyla tamamlandı!';
+              showToast(`Tebrikler! ${parsedStocks.length} ürün ve yedek başarıyla güncellendi.`, 'success');
+              
+              setTimeout(() => {
+                progressContainer.style.display = 'none';
+                loadBranches(); // Refresh table to show upload date
+              }, 2000);
             } catch (saveErr) {
-              console.warn('Dosya yedeği kaydedilemedi:', saveErr);
-            }
-
-            progressBar.style.width = '100%';
-            progressPercent.innerText = '100%';
-            progressText.innerText = 'Yükleme başarıyla tamamlandı!';
-            showToast(`Tebrikler! ${parsedStocks.length} ürün başarıyla güncellendi.`, 'success');
-            
-            setTimeout(() => {
+              console.error('Dosya yedeği kaydedilemedi:', saveErr);
               progressContainer.style.display = 'none';
-              loadBranches(); // Refresh table to show upload date
-            }, 2000);
+              showToast('Stoklar güncellendi ancak .ini dosyası veritabanına kaydedilemedi: ' + saveErr.message, 'error');
+              loadBranches();
+            }
           } catch (err) {
             progressContainer.style.display = 'none';
             showToast(err.message, 'error');
