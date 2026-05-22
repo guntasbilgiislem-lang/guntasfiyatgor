@@ -746,7 +746,7 @@ async function renderAdminSettingsView() {
         tbody.innerHTML = branches.map(b => {
           const up = uploads[b.id];
           const uploadInfo = up ? `<div style="font-size:0.75rem; color:var(--color-text-muted);">${new Date(up.uploaded_at).toLocaleString('tr-TR')}</div><div style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px;" title="${up.file_name}">${up.file_name}</div>` : '<span class="text-muted" style="font-size:0.8rem;">Yok</span>';
-          const downloadBtn = up ? `<button class="btn btn-teal btn-download-ini" data-id="${b.id}" style="padding: 0.4rem 0.8rem; font-size:0.8rem;" title="İndir"><i class="ph ph-download"></i></button>` : '';
+          const downloadBtn = up ? `<button class="btn btn-teal btn-download-ini" data-id="${b.id}" data-filename="${up.file_name}" style="padding: 0.4rem 0.8rem; font-size:0.8rem;" title="İndir"><i class="ph ph-download"></i></button>` : '';
 
           return `
           <tr>
@@ -799,14 +799,14 @@ async function renderAdminSettingsView() {
         document.querySelectorAll('.btn-download-ini').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             const id = e.currentTarget.dataset.id;
+            const fileName = e.currentTarget.dataset.filename;
             try {
-              const upload = await api.getBranchUpload(id);
-              if (upload && upload.file_content) {
-                const blob = new Blob([upload.file_content], { type: 'text/plain;charset=windows-1254' });
+              const blob = await api.getBranchUpload(id, fileName);
+              if (blob) {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = upload.file_name || `sube_${id}.ini`;
+                a.download = fileName || `sube_${id}.ini`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -1024,7 +1024,7 @@ async function renderAdminSettingsView() {
             
             // Save raw file
             try {
-              await api.saveBranchUpload(selectedBranchId, file.name, text);
+              await api.saveBranchUpload(selectedBranchId, file);
               progressBar.style.width = '100%';
               progressPercent.innerText = '100%';
               progressText.innerText = 'Yükleme başarıyla tamamlandı!';

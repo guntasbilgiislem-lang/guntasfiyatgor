@@ -643,17 +643,29 @@ class ApiService {
   }
 
   // --- BRANCH UPLOADS (INI FILES) ---
-  async saveBranchUpload(branchId, fileName, fileContent) {
-    const { error } = await supabase
+  async saveBranchUpload(branchId, file) {
+    // Upload the file to Supabase Storage
+    const filePath = `${branchId}/${file.name}`;
+    const { error: storageError } = await supabase.storage
+      .from('branch_uploads')
+      .upload(filePath, file, { upsert: true });
+
+    if (storageError) {
+      console.error("Storage upload error:", storageError);
+      throw new Error('Storage yüklemesi başarısız: ' + storageError.message);
+    }
+
+    // Save metadata to table
+    const { error: dbError } = await supabase
       .from('branch_uploads')
       .upsert({
         branch_id: branchId,
-        file_name: fileName,
-        file_content: fileContent,
+        file_name: file.name,
+        file_content: 'storage', // Indicate it's in storage now
         uploaded_at: new Date().toISOString()
       }, { onConflict: 'branch_id' });
 
-    if (error) throw new Error('Dosya veritabanına kaydedilemedi: ' + error.message);
+    if (dbError) throw new Error('Dosya veritabanına kaydedilemedi: ' + dbError.message);
   }
 
   async fetchBranchUploads() {
@@ -673,15 +685,14 @@ class ApiService {
     return uploadsMap;
   }
 
-  async getBranchUpload(branchId) {
-    const { data, error } = await supabase
+  async getBranchUpload(branchId, fileName) {
+    const filePath = `${branchId}/${fileName}`;
+    const { data, error } = await supabase.storage
       .from('branch_uploads')
-      .select('file_name, file_content')
-      .eq('branch_id', branchId)
-      .maybeSingle();
+      .download(filePath);
 
-    if (error) throw new Error('Dosya içeriği alınamadı: ' + error.message);
-    return data;
+    if (error) throw new Error('Dosya Storage alanından indirilemedi: ' + error.message);
+    return data; // returns a Blob
   }
 
   // Verify branch password directly against database (with offline local fallback)
