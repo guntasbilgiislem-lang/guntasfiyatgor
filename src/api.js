@@ -642,6 +642,46 @@ class ApiService {
     return data ? data.updated_at : null;
   }
 
+  // --- BRANCH UPLOADS (INI FILES) ---
+  async saveBranchUpload(branchId, fileName, fileContent) {
+    const { error } = await supabase
+      .from('branch_uploads')
+      .upsert({
+        branch_id: branchId,
+        file_name: fileName,
+        file_content: fileContent,
+        uploaded_at: new Date().toISOString()
+      }, { onConflict: 'branch_id' });
+
+    if (error) throw new Error('Dosya veritabanına kaydedilemedi: ' + error.message);
+  }
+
+  async fetchBranchUploads() {
+    const { data, error } = await supabase
+      .from('branch_uploads')
+      .select('branch_id, file_name, uploaded_at');
+
+    if (error) throw new Error('Yüklemeler getirilemedi: ' + error.message);
+    
+    // Convert to map for easy lookup by branch_id
+    const uploadsMap = {};
+    data.forEach(item => {
+      uploadsMap[item.branch_id] = item;
+    });
+    return uploadsMap;
+  }
+
+  async getBranchUpload(branchId) {
+    const { data, error } = await supabase
+      .from('branch_uploads')
+      .select('file_name, file_content')
+      .eq('branch_id', branchId)
+      .maybeSingle();
+
+    if (error) throw new Error('Dosya içeriği alınamadı: ' + error.message);
+    return data;
+  }
+
   // Verify branch password directly against database (with offline local fallback)
   async verifyBranchPassword(branchId, enteredPassword) {
     if (!branchId || !enteredPassword) return false;

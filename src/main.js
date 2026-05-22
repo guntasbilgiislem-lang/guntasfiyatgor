@@ -690,6 +690,7 @@ async function renderAdminSettingsView() {
               <th>Şube Kodu</th>
               <th>Şube Adı</th>
               <th>Şifre</th>
+              <th>Son Yükleme</th>
               <th style="width: 150px; text-align:center;">İşlemler</th>
             </tr>
           </thead>
@@ -725,6 +726,7 @@ async function renderAdminSettingsView() {
   const loadBranches = async () => {
     try {
       const branches = await api.fetchBranches();
+      const uploads = await api.fetchBranchUploads().catch(() => ({}));
 
       // Populate adminBranchSelect dropdown
       const branchSelect = document.getElementById('adminBranchSelect');
@@ -739,19 +741,27 @@ async function renderAdminSettingsView() {
 
       const tbody = document.getElementById('branchesTableBody');
       if (branches.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;" class="text-muted">Kayıtlı şube bulunmuyor.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;" class="text-muted">Kayıtlı şube bulunmuyor.</td></tr>`;
       } else {
-        tbody.innerHTML = branches.map(b => `
+        tbody.innerHTML = branches.map(b => {
+          const up = uploads[b.id];
+          const uploadInfo = up ? `<div style="font-size:0.75rem; color:var(--color-text-muted);">${new Date(up.uploaded_at).toLocaleString('tr-TR')}</div><div style="font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:150px;" title="${up.file_name}">${up.file_name}</div>` : '<span class="text-muted" style="font-size:0.8rem;">Yok</span>';
+          const downloadBtn = up ? `<button class="btn btn-teal btn-download-ini" data-id="${b.id}" style="padding: 0.4rem 0.8rem; font-size:0.8rem;" title="İndir"><i class="ph ph-download"></i></button>` : '';
+
+          return `
           <tr>
             <td style="font-family:monospace; font-weight:600;">${b.id}</td>
             <td>${b.name}</td>
             <td style="font-family:monospace;">${b.password}</td>
+            <td>${uploadInfo}</td>
             <td style="text-align:center; display:flex; gap:8px; justify-content:center;">
+              ${downloadBtn}
               <button class="btn btn-teal btn-edit-branch" data-id="${b.id}" data-name="${b.name}" data-pass="${b.password}" style="padding: 0.4rem 0.8rem; font-size:0.8rem;"><i class="ph ph-pencil-simple"></i></button>
               <button class="btn btn-danger btn-delete-branch" data-id="${b.id}" style="padding: 0.4rem 0.8rem; font-size:0.8rem;"><i class="ph ph-trash"></i></button>
             </td>
           </tr>
-        `).join('');
+          `;
+        }).join('');
 
         // Bind CRUD click actions
         document.querySelectorAll('.btn-edit-branch').forEach(btn => {
@@ -782,6 +792,30 @@ async function renderAdminSettingsView() {
               } catch (err) {
                 showToast(err.message, 'error');
               }
+            }
+          });
+        });
+
+        document.querySelectorAll('.btn-download-ini').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const id = e.currentTarget.dataset.id;
+            try {
+              const upload = await api.getBranchUpload(id);
+              if (upload && upload.file_content) {
+                const blob = new Blob([upload.file_content], { type: 'text/plain;charset=windows-1254' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = upload.file_name || `sube_${id}.ini`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              } else {
+                showToast('Dosya içeriği bulunamadı.', 'error');
+              }
+            } catch (err) {
+              showToast(err.message, 'error');
             }
           });
         });
@@ -987,6 +1021,13 @@ async function renderAdminSettingsView() {
               progressPercent.innerText = `${overallPercent}%`;
               progressText.innerText = `Ürünler veritabanına yükleniyor: %${percent} tamamlandı (${parsedStocks.length} ürün)...`;
             });
+            
+            // Save raw file
+            try {
+              await api.saveBranchUpload(selectedBranchId, file.name, text);
+            } catch (saveErr) {
+              console.warn('Dosya yedeği kaydedilemedi:', saveErr);
+            }
 
             progressBar.style.width = '100%';
             progressPercent.innerText = '100%';
@@ -995,6 +1036,7 @@ async function renderAdminSettingsView() {
             
             setTimeout(() => {
               progressContainer.style.display = 'none';
+              loadBranches(); // Refresh table to show upload date
             }, 2000);
           } catch (err) {
             progressContainer.style.display = 'none';

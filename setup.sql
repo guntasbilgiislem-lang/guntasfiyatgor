@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS app_users (
   role TEXT DEFAULT 'user'
 );
 
+CREATE TABLE IF NOT EXISTS branch_uploads (
+  branch_id TEXT PRIMARY KEY REFERENCES branches(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_content TEXT NOT NULL,
+  uploaded_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -35,6 +42,7 @@ ALTER TABLE branches DISABLE ROW LEVEL SECURITY;
 ALTER TABLE stocks DISABLE ROW LEVEL SECURITY;
 ALTER TABLE app_users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE branch_uploads DISABLE ROW LEVEL SECURITY;
 
 -- Eğer RLS'yi kapatmak yerine herkese açık izinler (policy) tanımlamak isterseniz aşağıdaki komutları kullanabilirsiniz:
 -- DROP POLICY IF EXISTS "Public Access" ON branches;
