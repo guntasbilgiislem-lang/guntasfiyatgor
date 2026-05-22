@@ -52,19 +52,22 @@ class ApiService {
     }
 
     // App user login (multi-branch viewer role)
-    const { data: appUser, error: appUserError } = await supabase
-      .from('app_users')
-      .select('*')
-      .eq('username', username)
-      .eq('password', password)
-      .maybeSingle();
+    // Wrapped in try/catch: if app_users table doesn't exist yet, fall through to branch login
+    try {
+      const { data: appUser, error: appUserError } = await supabase
+        .from('app_users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .maybeSingle();
 
-    if (appUserError) throw new Error('Veritabanı hatası: ' + appUserError.message);
-
-    if (appUser) {
-      const user = { id: appUser.id, name: appUser.name, role: 'user', username: appUser.username };
-      this.setToken('jwt_user_' + username + '_' + Date.now(), user);
-      return user;
+      if (!appUserError && appUser) {
+        const user = { id: appUser.id, name: appUser.name, role: 'user', username: appUser.username };
+        this.setToken('jwt_user_' + username + '_' + Date.now(), user);
+        return user;
+      }
+    } catch (appUserEx) {
+      console.warn('[LOGIN] app_users tablosu kontrol edilemedi, şube girişine devam ediliyor:', appUserEx.message);
     }
 
     // Branch login

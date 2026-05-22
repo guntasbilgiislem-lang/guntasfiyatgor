@@ -167,6 +167,8 @@ function renderLogin() {
 
       if (user.role === 'admin') {
         navigateTo('admin_settings');
+      } else if (user.role === 'user') {
+        navigateTo('multi_branch_kiosk');
       } else {
         navigateTo('kiosk');
       }
